@@ -1,0 +1,11 @@
+
+@media print{.sidebar,.topbar,.no-print,#bottom-nav{display:none!important}.main{margin-left:0;padding-bottom:0!important}.print-head{display:block!important}}
+.print-head{display:none}
+@media print{
+  @page{size:A5 portrait;margin:0}
+  body>*:not(#cp-ov){display:none!important}
+  #cp-ov{position:fixed!important;inset:0!important;display:flex!important;align-items:center!important;justify-content:center!important;background:none!important;padding:0!important}
+  .cp-bar,.cp-hint{display:none!important}
+  .cp-sheet{width:118mm!important;height:168mm!important;min-height:0!important;max-width:none!important;box-shadow:none!important;margin:auto!important;font-size:80%;overflow:hidden!important}
+  .cph-addr-bar{background:var(--co-primary)!important;color:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
