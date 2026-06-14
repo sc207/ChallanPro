@@ -2706,18 +2706,20 @@ function _buildChallanHalf(ch, client, co){
 
   return '<div class="cph">'+
     // Religious text + DELIVERY CHALLAN label
-    '<div class="cph-top" style="position:relative;justify-content:center">'+
+    '<div class="cph-top" style="position:relative;">'+
       '<div class="cph-reli">&#2404;&#2404; &#2358;&#2381;&#2352;&#2368; &#2327;&#2339;&#2375;&#2358;&#2366;&#2351; &#2344;&#2350;&#2307; &#2404;&#2404;</div>'+
       '<div class="cph-dlabel" style="position:absolute;right:10px;top:2px">DELIVERY CHALLAN</div>'+
     '</div>'+
     // Logo circle + company name + type
-    '<div class="cph-logo-row">'+
-      renderCompanyLogo(co,50)+
-      '<div style="flex:1;min-width:0">'+
-        '<div class="cph-nm">'+esc(co.name)+'</div>'+
-        '<div class="cph-type">'+esc(co.tagline||'')+'</div>'+
-      '</div>'+
-    '</div>'+
+   '<div class="cph-logo-row">'+
+  '<div style="width:90px;display:flex;justify-content:center;align-items:center;flex-shrink:0">'+
+    renderCompanyLogo(co,70)+
+  '</div>'+
+  '<div style="flex:1;padding-right:170px">'+
+    '<div class="cph-nm">'+esc(co.name)+'</div>'+
+    '<div class="cph-type">'+esc(co.tagline||'')+'</div>'+
+  '</div>'+
+'</div>'+
     // Black address bar
     '<div class="cph-addr-bar">'+addrBar+'</div>'+
     // BORDERED To: box (Riddhi Steel style)
