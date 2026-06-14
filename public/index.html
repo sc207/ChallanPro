@@ -2665,6 +2665,7 @@ function _buildChallanHalf(ch, client, co){
   // Field values
   var billNo   = ch ? esc(ch.billNo||'')   : '';
   var billDate = ch ? esc(fmtD(ch.date))   : '';
+  var vehicleNo = ch ? esc(ch.vehicleNo || '') : '';
   var toName   = client ? esc(client.name||'')    : '';
   var toAddr   = client ? esc(client.address||'') : '';
   var toPhone  = client ? esc(client.phone||'')   : '';
@@ -2728,7 +2729,7 @@ function _buildChallanHalf(ch, client, co){
         '<input class="cph-to-inp" value="'+toPhone+'" placeholder="Phone…"/>'+
       '</div>'+
       '<div class="cph-refs">'+
-        '<div class="cph-ref"><span class="cph-rl">D.C. No. :</span><input class="cph-rv" value="'+billNo+'"/></div>'+
+       '<div class="cph-ref"><span class="cph-rl">Vehicle :</span><input class="cph-rv" value="'+vehicleNo+'" placeholder="GJ01AB1234"/></div>'+
         '<div class="cph-ref"><span class="cph-rl">Date :</span><input class="cph-rv" value="'+billDate+'"/></div>'+
         '<div class="cph-ref"><span class="cph-rl">Bill No. :</span><input class="cph-rv" value="'+billNo+'"/></div>'+
       '</div>'+
