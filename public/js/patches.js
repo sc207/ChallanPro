@@ -118,9 +118,15 @@ saveChallan = async function(existingId) {
   if (!items.length) { alert('Add at least one product row with qty.'); return; }
   const clId = parseInt(el('ch-client').value);
   if (!clId) { alert('Select a client.'); return; }
+  const billNoVal = (el('ch-bill')?.value || '').trim();
+  if (!existingId) {
+    const dup = APP.challans.some(c => c.billNo === billNoVal);
+    if (dup) { alert('Bill No. "' + billNoVal + '" already exists. Please use a different number.'); return; }
+  }
   const total = items.reduce((s, it) => s + it.lt, 0);
   const payload = {
     id: existingId || undefined,
+    billNo: billNoVal,
     clientId: clId, date: el('ch-date').value, mode: el('ch-mode').value,
     items, total, vehicleNo: el('ch-veh').value, receiver: el('ch-recv').value,
     notes: el('ch-notes').value, status: 'draft',

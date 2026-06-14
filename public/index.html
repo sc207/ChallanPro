@@ -65,16 +65,16 @@
 <main class="main">
   <div class="topbar no-print">
     <button class="mobile-menu-btn" onclick="toggleSidebar()" id="menu-btn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
-    <div>
-      <div id="page-title" style="font-size:16px;font-weight:800;color:#0f172a">Dashboard</div>
-      <div id="page-sub" style="font-size:12px;color:#64748b">Today's business overview</div>
+    <div style="flex:1;min-width:0;overflow:hidden">
+      <div id="page-title" style="font-size:16px;font-weight:800;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Dashboard</div>
+      <div id="page-sub" style="font-size:12px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Today's business overview</div>
     </div>
-    <div style="display:flex;align-items:center;gap:10px">
-      <div style="background:#f1f5f9;border-radius:7px;padding:7px 13px;font-size:12px;color:#475569">
+    <div class="topbar-actions" style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+      <div class="topbar-date" style="background:#f1f5f9;border-radius:7px;padding:7px 13px;font-size:12px;color:#475569;white-space:nowrap">
         <i class="fas fa-calendar" style="color:#3b82f6;margin-right:5px"></i><span id="cur-date"></span>
       </div>
-      <button class="btn btn-success" onclick="openQuickPaymentModal()"><i class="fas fa-rupee-sign" style="margin-right:5px"></i>Payment</button>
-      <button class="btn btn-primary" onclick="openChallanModal()"><i class="fas fa-plus" style="margin-right:5px"></i>New Challan</button>
+      <button class="btn btn-success" onclick="openQuickPaymentModal()"><i class="fas fa-rupee-sign" style="margin-right:5px"></i><span class="btn-text">Payment</span></button>
+      <button class="btn btn-primary" onclick="openChallanModal()"><i class="fas fa-plus" style="margin-right:5px"></i><span class="btn-text">New Challan</span></button>
     </div>
   </div>
 
@@ -106,7 +106,7 @@
           <div style="font-weight:700;font-size:13px;color:#0f172a">Recent Challans</div>
           <span onclick="nav('challans')" style="font-size:12px;color:#3b82f6;cursor:pointer">View All →</span>
         </div>
-        <div class="challan-table-wrap" style="overflow-x:auto"><table><thead><tr><th>Bill No</th><th>Date</th><th>Client</th><th>Items</th><th>Total</th><th>Paid</th><th>Outstanding</th><th>Mode</th><th>Status</th></tr></thead><tbody id="d-recent"></tbody></table></div>
+        <div style="overflow-x:auto"><table><thead><tr><th>Bill No</th><th>Date</th><th>Client</th><th>Total</th><th>Outstanding</th><th>Status</th></tr></thead><tbody id="d-recent"></tbody></table></div>
       </div>
       <div class="card">
         <div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:12px"><i class="fas fa-history" style="color:#64748b;margin-right:6px"></i>Recent Activity</div>
@@ -407,6 +407,7 @@
     <button class="bn-more-item" onclick="closeMobileMore();nav('products')"><i class="fas fa-boxes"></i>Products</button>
     <button class="bn-more-item admin-only" id="bn-companies" onclick="closeMobileMore();nav('companies')"><i class="fas fa-building"></i>Companies</button>
     <button class="bn-more-item" id="bn-users" style="display:none" onclick="closeMobileMore();nav('users')"><i class="fas fa-user-shield"></i>Users</button>
+    <button class="bn-more-item" onclick="closeMobileMore();logoutUser()" style="border:1px solid rgba(239,68,68,.3)"><i class="fas fa-sign-out-alt" style="color:#f87171"></i><span style="color:#f87171">Logout</span></button>
   </div>
 </div>
 <nav id="bottom-nav">
@@ -572,6 +573,14 @@ function nextBillNo() {
   const next = nums.length ? Math.max(...nums)+1 : 1;
   return prefix + String(next).padStart(3,'0');
 }
+function validateBillNo(input){
+  var val=(input.value||'').trim();
+  var err=el('ch-bill-err');
+  var exists=APP.challans.some(function(c){return c.billNo===val;});
+  if(err) err.style.display=exists?'':'none';
+  input.style.borderColor=exists?'#dc2626':'';
+  return !exists;
+}
 const CHARTS = {};
 function mkChart(id, cfg) { if(CHARTS[id]) CHARTS[id].destroy(); const c = document.getElementById(id); if(!c) return; CHARTS[id]=new Chart(c,cfg); }
 function el(id){ return document.getElementById(id); }
@@ -669,7 +678,17 @@ function renderDashboard() {
   }).join('') : '<div style="color:#94a3b8;font-size:13px;padding:12px 0">No outstanding credits 🎉</div>';
 
   const recent = [...cChallans()].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,8);
-  el('d-recent').innerHTML = recent.map(c=>challanTR(c)).join('');
+  el('d-recent').innerHTML = recent.map(function(c){
+    const os=outstanding(c),st=challanStatus(c);
+    return '<tr>'+
+      '<td><strong style="color:#1d4ed8;cursor:pointer" onclick="printDeliveryChallan(\''+c.id+'\')">'+c.billNo+'</strong></td>'+
+      '<td>'+fmtD(c.date)+'</td>'+
+      '<td>'+clientName(c.clientId)+'</td>'+
+      '<td><strong>'+fmt(c.total)+'</strong></td>'+
+      '<td style="font-weight:700;color:'+(os>0?'#b91c1c':'#15803d')+'">'+fmt(os)+'</td>'+
+      '<td><span class="badge badge-'+st+'">'+st[0].toUpperCase()+st.slice(1)+'</span></td>'+
+    '</tr>';
+  }).join('');
 
   renderWeeklyChart();
   renderMixChart();
@@ -1080,8 +1099,12 @@ function renderChallans() {
     return '<div class="data-card"><div class="data-card-head"><div><div style="font-weight:700">'+c.billNo+'</div><div style="font-size:11px;color:#64748b">'+fmtD(c.date)+' · '+clientName(c.clientId)+'</div></div><span class="badge badge-'+st+'">'+st+'</span></div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px"><div><span style="color:#94a3b8;font-size:10px">Total</span><div style="font-weight:700">'+fmt(c.total)+'</div></div>'+
       '<div><span style="color:#94a3b8;font-size:10px">Outstanding</span><div style="font-weight:700;color:'+(os>0?'#b91c1c':'#15803d')+'">'+fmt(os)+'</div></div></div>'+
-      '<div class="data-card-actions"><button class="btn btn-ghost btn-sm" onclick="openChallanModal('+c.id+')"><i class="fas fa-edit"></i></button>'+
-      '<button class="btn btn-ghost btn-sm" onclick="printChallan('+c.id+')"><i class="fas fa-print"></i></button></div></div>';
+      '<div class="data-card-actions">'+
+        '<button class="btn btn-sm" style="background:#0369a1;color:#fff" onclick="printDeliveryChallan(\''+c.id+'\')" title="View"><i class="fas fa-eye"></i></button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="openChallanModal(\''+c.id+'\')" title="Edit"><i class="fas fa-edit"></i></button>'+
+        '<button class="btn btn-sm" style="background:#dc5800;color:#fff" onclick="downloadChallanPDF(\''+c.id+'\')" title="PDF"><i class="fas fa-file-pdf"></i></button>'+
+        '<button class="btn btn-danger btn-sm" onclick="confirmDelete(\'challan\',\''+c.id+'\')" title="Delete"><i class="fas fa-trash"></i></button>'+
+      '</div></div>';
   }).join('');
 }
 function resetCF(){['fc-q','fc-cl','fc-st','fc-mo','fc-mn'].forEach(id=>{const e=el(id);e.value='';});renderChallans();}
@@ -1374,7 +1397,7 @@ function openChallanModal(id){
 
   var html=
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
-      '<div class="form-row"><label>Bill No</label><input class="inp" id="ch-bill" value="'+bill+'" readonly style="background:#f8fafc"></div>'+
+      '<div class="form-row"><label>Bill No</label><input class="inp" id="ch-bill" value="'+bill+'"'+(ch?' readonly style="background:#f8fafc"':' oninput="validateBillNo(this)"')+'>'+(ch?'':'<div id="ch-bill-err" style="color:#b91c1c;font-size:11px;margin-top:3px;display:none">Bill No. already exists</div>')+'</div>'+
       '<div class="form-row"><label>Date</label><input class="inp" id="ch-date" type="date" value="'+(ch?ch.date:TODAY)+'"></div>'+
       '<div class="form-row" style="grid-column:1/-1"><label>Client</label><select class="inp" id="ch-client">'+clOpts+'</select></div>'+
       '<div class="form-row"><label>Vehicle No</label><input class="inp" id="ch-veh" value="'+(ch?ch.vehicleNo:'')+'" placeholder="GJ-05-AB-1234"></div>'+
@@ -2648,18 +2671,17 @@ function _buildChallanHalf(ch, client, co){
   var mob=co.mobile||co.phone||'';
   var gst=co.gstin||co.gst||'';
   if(mob) addrBar+='&nbsp;&nbsp;M : '+esc(mob);
-  if(gst) addrBar+='&nbsp;&nbsp;GSTIN : '+esc(gst);
 
   return '<div class="cph">'+
     // Religious text + DELIVERY CHALLAN label
-    '<div class="cph-top">'+
+    '<div class="cph-top" style="position:relative;justify-content:center">'+
       '<div class="cph-reli">&#2404;&#2404; &#2358;&#2381;&#2352;&#2368; &#2327;&#2339;&#2375;&#2358;&#2366;&#2351; &#2344;&#2350;&#2307; &#2404;&#2404;</div>'+
-      '<div class="cph-dlabel">DELIVERY CHALLAN</div>'+
+      '<div class="cph-dlabel" style="position:absolute;right:10px;top:2px">DELIVERY CHALLAN</div>'+
     '</div>'+
     // Logo circle + company name + type
     '<div class="cph-logo-row">'+
       renderCompanyLogo(co,50)+
-      '<div>'+
+      '<div style="flex:1;min-width:0">'+
         '<div class="cph-nm">'+esc(co.name)+'</div>'+
         '<div class="cph-type">'+esc(co.tagline||'')+'</div>'+
       '</div>'+
@@ -2687,9 +2709,9 @@ function _buildChallanHalf(ch, client, co){
         '<colgroup>'+
           '<col style="width:5%">'+
           '<col style="width:46%">'+
-          '<col style="width:7%">'+
-          '<col style="width:8%">'+
           '<col style="width:16%">'+
+          '<col style="width:8%">'+
+          '<col style="width:7%">'+
           '<col style="width:18%">'+
         '</colgroup>'+
         '<thead><tr>'+
@@ -2704,7 +2726,7 @@ function _buildChallanHalf(ch, client, co){
           '</tr>'+
           '<tr>'+
             '<td colspan="5" class="tr" style="padding:5px 6px">TOTAL</td>'+
-            '<td class="tr" style="padding:5px 6px">'+(grandTotal>0?fmtPdf(grandTotal):'')+'</td>'+
+            '<td class="tr" style="padding:5px 6px">'+(grandTotal>0?'&#8377;'+fmtPdf(grandTotal):'')+'</td>'+
           '</tr>'+
         '</tfoot>'+
       '</table>'+

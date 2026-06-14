@@ -76,7 +76,18 @@ router.post('/:id/confirm', async (req, res) => {
     const existing = await queryOne('SELECT * FROM challans WHERE id = ? AND is_deleted = 0', [id]);
     if (!existing) return res.status(404).json({ error: 'Not found' });
     if (existing.status !== 'draft') return res.status(400).json({ error: 'Only draft challans can be confirmed' });
-    const billNo = await assignBillNumber(existing.company_id);
+    let billNo;
+    if (existing.bill_no && existing.bill_no.trim()) {
+      billNo = existing.bill_no;
+      const parts = billNo.split('/');
+      const num = parseInt(parts[1]) || 0;
+      const co = await queryOne('SELECT next_bill_number FROM companies WHERE id = ?', [existing.company_id]);
+      if (co && num >= co.next_bill_number) {
+        await run('UPDATE companies SET next_bill_number = ? WHERE id = ?', [num + 1, existing.company_id]);
+      }
+    } else {
+      billNo = await assignBillNumber(existing.company_id);
+    }
     await run(
       `UPDATE challans SET status='confirmed', bill_no=?, confirmed_at=datetime('now') WHERE id=?`,
       [billNo, id]

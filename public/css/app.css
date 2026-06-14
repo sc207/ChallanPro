@@ -238,8 +238,9 @@ body.sidebar-open{overflow:hidden}
   .data-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px}
   .data-card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
   .data-card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .topbar-date{display:none!important}
   .topbar-actions .btn-text{display:none}
-  .topbar-actions .btn-icon-only{padding:8px 12px}
+  .topbar-actions .btn{padding:8px 10px;font-size:12px}
   .filter-bar{flex-direction:column!important}
   .filter-bar .inp,.filter-bar select{width:100%!important}
   .prow{grid-template-columns:1fr!important}

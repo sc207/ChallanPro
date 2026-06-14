@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"F:\\\\3. Users\\\\Sunny\\\\Sunny\\\\New folder \\(3\\)\\\\001\\\\ChallanPro-main\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Skill(run)",
+      "Bash(npm --version)",
+      "PowerShell(npm *)",
+      "PowerShell(Get-Command *)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); node --version)"
+    ]
+  }
+}
