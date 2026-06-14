@@ -206,12 +206,53 @@ body.sidebar-open{overflow:hidden}
 /* ── GSTIN ── */
 .cph-gstin{font-size:9.5pt;font-weight:700;padding:4px 10px;border-bottom:1px solid #ddd;flex-shrink:0}
 /* ── Footer ── */
-.cph-foot{border-top:1.5px solid #555;display:flex;padding:6px 10px 8px;gap:10px;min-height:68px;flex-shrink:0}
-.cph-foot-l{flex:2;display:flex;flex-direction:column;justify-content:space-between}
-.cph-foot-r{flex:1;display:flex;align-items:flex-end;justify-content:flex-end}
-.cph-terms{font-size:8.5pt;line-height:1.6;color:#333}
-.cph-for{font-size:11pt;font-weight:800;color:#000;line-height:1.35;text-align:right}
-.cph-rcv{font-size:9pt;border-top:1px solid #555;padding-top:4px;white-space:nowrap;color:#222}
+.cph-foot{
+  border-top:1.5px solid #555;
+  display:flex;
+  padding:6px 10px 8px;
+  gap:10px;
+  min-height:68px;
+  flex-shrink:0;
+}
+
+.cph-foot-l{
+  flex:2;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+}
+
+.cph-foot-r{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  justify-content:flex-start;
+  text-align:right;
+}
+
+.cph-terms{
+  font-size:8.5pt;
+  line-height:1.6;
+  color:#333;
+}
+
+.cph-for{
+  font-size:11pt;
+  font-weight:800;
+  color:#000;
+  line-height:1.35;
+  text-align:right;
+  width:100%;
+}
+
+.cph-rcv{
+  font-size:9pt;
+  border-top:1px solid #555;
+  padding-top:4px;
+  white-space:nowrap;
+  color:#222;
+}
 /* ── Print — A5 portrait, zero margins ── */
 @media print{
   @page{margin:0;size:A5 portrait}
