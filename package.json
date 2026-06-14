@@ -1,0 +1,32 @@
+{
+  "name": "challan-pro",
+  "version": "1.0.0",
+  "description": "ChallanPro — Billing & Credit Manager",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "migrate": "node server/db/migrate.js",
+    "seed": "node server/db/migrate.js --seed",
+    "turso:migrate": "node server/db/migrate.js",
+    "turso:seed": "node server/db/migrate.js --seed"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "better-sqlite3": "^11.7.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^1.4.5-lts.1",
+    "qrcode": "^1.5.4",
+    "speakeasy": "^2.0.0",
+    "zod": "^3.24.1"
+  }
+}

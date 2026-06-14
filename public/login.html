@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Login — ChallanPro</title>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:#0f172a;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+  padding:20px;
+}
+
+.card{
+  background:#fff;
+  width:100%;
+  max-width:420px;
+  padding:28px;
+  border-radius:14px;
+  box-shadow:0 20px 60px rgba(0,0,0,.3);
+}
+
+h1{font-size:22px;margin-bottom:5px}
+p{color:#64748b;font-size:13px;margin-bottom:20px}
+
+input{
+  width:100%;
+  padding:10px;
+  margin:10px 0;
+  border:1px solid #e2e8f0;
+  border-radius:8px;
+  outline:none;
+}
+
+button{
+  width:100%;
+  padding:10px;
+  background:#1d4ed8;
+  color:#fff;
+  border:none;
+  border-radius:8px;
+  font-weight:700;
+  cursor:pointer;
+}
+
+button:hover{background:#1e40af}
+
+.step{display:none}
+.step.active{display:block}
+
+.qr{
+  width:200px;
+  margin:10px auto;
+  display:block;
+}
+
+/* ✅ FIXED OVERFLOW ISSUE */
+#secret{
+  text-align:center;
+  font-weight:700;
+  font-size:12px;
+
+  max-width:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+
+  margin-top:10px;
+  padding:6px;
+  background:#f1f5f9;
+  border-radius:6px;
+}
+
+/* optional helper text */
+.small-text{
+  font-size:12px;
+  color:#64748b;
+  text-align:center;
+  margin-top:8px;
+}
+
+.error{
+  background:#fee2e2;
+  color:#b91c1c;
+  padding:10px;
+  border-radius:8px;
+  font-size:13px;
+  display:none;
+  margin-bottom:10px;
+}
+</style>
+</head>
+
+<body>
+<div class="card">
+
+<h1>ChallanPro</h1>
+<p>Google Authenticator Login</p>
+
+<div id="err" class="error"></div>
+
+<!-- STEP 1 -->
+<div id="step1" class="step active">
+  <input id="email" type="email" placeholder="Enter email">
+  <button onclick="startLogin()">Continue</button>
+</div>
+
+<!-- STEP 2 -->
+<div id="step2" class="step">
+  <p>Scan QR in Google Authenticator</p>
+
+  <img id="qr" class="qr" />
+
+  <p class="small-text">
+    Or use setup key manually
+  </p>
+
+  <div id="secret"></div>
+
+  <button onclick="showVerify()">I have scanned</button>
+</div>
+
+<!-- STEP 3 -->
+<div id="step3" class="step">
+  <input id="code" maxlength="6" placeholder="Enter 6-digit code">
+  <button onclick="verify()">Login</button>
+</div>
+
+</div>
+
+<script>
+let email = '';
+
+function showError(msg){
+  const e = document.getElementById('err');
+  e.innerText = msg;
+  e.style.display = 'block';
+}
+
+function hideError(){
+  document.getElementById('err').style.display = 'none';
+}
+
+function setStep(n){
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById('step'+n).classList.add('active');
+}
+
+/* STEP 1 */
+async function startLogin(){
+  hideError();
+  email = document.getElementById('email').value.trim().toLowerCase();
+
+  if(!email){
+    showError('Email required');
+    return;
+  }
+
+  try{
+    const r = await fetch('/api/auth/start-login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email})
+    });
+
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error);
+
+    // ---------------- IMPORTANT LOGIC ----------------
+    if (d.step === 'setup') {
+
+      const setup = await fetch('/api/auth/setup-authenticator',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({email})
+      });
+
+      const s = await setup.json();
+      if(!setup.ok) throw new Error(s.error);
+
+      document.getElementById('qr').src = s.qr;
+
+      document.getElementById('secret').innerText =
+        "Manual key: " + s.secret.replace(/(.{4})/g, '$1 ');
+
+      setStep(2);
+
+    } else {
+      // already setup → skip QR
+      setStep(3);
+    }
+
+  }catch(e){
+    showError(e.message);
+  }
+}
+/* STEP 2 */
+function showVerify(){
+  setStep(3);
+}
+
+/* STEP 3 */
+async function verify(){
+  hideError();
+
+  const code = document.getElementById('code').value.trim();
+
+  if(code.length !== 6){
+    showError('Enter 6-digit code');
+    return;
+  }
+
+  try{
+    const r = await fetch('/api/auth/verify-authenticator',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      credentials:'include',
+      body:JSON.stringify({email, code})
+    });
+
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error);
+
+    window.location.href='/';
+
+  }catch(e){
+    showError(e.message);
+  }
+}
+</script>
+
+</body>
+</html>

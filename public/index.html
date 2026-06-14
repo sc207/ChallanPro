@@ -1,0 +1,2784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ChallanPro — Billing & Credit Manager</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.7.0/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/css/app.css"><link rel="stylesheet" href="/css/print.css">
+<script src="/js/api.js"></script><script src="/js/branding.js"></script><script src="/js/data.js"></script></head>
+<body>
+
+<!-- ═══ SIDEBAR OVERLAY (mobile) ═══ -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar" id="sidebar">
+  <div class="nav-logo">
+    <div class="name"><i class="fas fa-file-invoice" style="color:#60a5fa;margin-right:7px"></i>ChallanPro</div>
+    <div class="sub">Billing & Credit Manager</div>
+  </div>
+  <!-- Company Switcher -->
+  <div class="co-sw" id="co-sw-wrap">
+    <div class="co-sw-head" onclick="toggleCoPanel()">
+      <span id="co-sw-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px">—</span>
+      <i class="fas fa-chevron-down" id="co-sw-icon" style="font-size:11px;flex-shrink:0;transition:transform .2s"></i>
+    </div>
+    <div class="co-panel" id="co-panel">
+      <div id="co-panel-list" style="max-height:180px;overflow-y:auto;margin-top:4px"></div>
+      <button class="btn btn-ghost btn-sm admin-only" style="width:100%;margin-top:6px;font-size:11px;background:#1e293b;color:#94a3b8;border:1px solid #334155" onclick="openAddCompanyModal()"><i class="fas fa-plus" style="margin-right:4px"></i>Add Company</button>
+    </div>
+  </div>
+  <nav style="padding:8px 0">
+    <div class="nav-section">Main</div>
+    <div class="nav-item active" onclick="nav('dashboard')" id="nav-dashboard"><i class="fas fa-chart-pie"></i>Dashboard</div>
+    <div class="nav-item" onclick="nav('dailybook')" id="nav-dailybook"><i class="fas fa-book-open"></i>Daily Book</div>
+    <div class="nav-section">Transactions</div>
+    <div class="nav-item" onclick="nav('challans')" id="nav-challans"><i class="fas fa-file-alt"></i>Challans</div>
+    <div class="nav-item" onclick="nav('payments')" id="nav-payments"><i class="fas fa-hand-holding-usd"></i>Payments</div>
+    <div class="nav-section">Customers</div>
+    <div class="nav-item" onclick="nav('customers')" id="nav-customers"><i class="fas fa-users"></i>Customers</div>
+    <div class="nav-item" onclick="nav('followups')" id="nav-followups"><i class="fas fa-phone-alt"></i>Follow-ups<span class="fu-badge" id="nav-fu-cnt" style="display:none">0</span></div>
+    <div class="nav-section">Reports</div>
+    <div class="nav-item" onclick="nav('monthly')" id="nav-monthly"><i class="fas fa-calendar-alt"></i>Monthly Report</div>
+    <div class="nav-item" onclick="nav('aging')" id="nav-aging"><i class="fas fa-clock"></i>Aging Analysis</div>
+    <div class="nav-section">Settings</div>
+    <div class="nav-item" onclick="nav('products')" id="nav-products"><i class="fas fa-boxes"></i>Products</div>
+    <div class="nav-item" onclick="nav('companies')" id="nav-companies"><i class="fas fa-building"></i>Companies</div>
+    <div class="nav-item" onclick="nav('users')" id="nav-users" style="display:none"><i class="fas fa-user-shield"></i>Manage Users</div>
+  </nav>
+  <div class="nav-footer">
+    <div class="box">
+      <div id="user-role-badge" style="display:none;color:#60a5fa;font-size:10px;margin-bottom:8px;word-break:break-all"></div>
+      <div style="color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Total Outstanding</div>
+      <div id="sb-os" style="color:#f87171;font-size:20px;font-weight:800;margin-top:3px">—</div>
+      <div id="sb-cl" style="color:#64748b;font-size:11px;margin-top:2px">—</div>
+    </div>
+    <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;font-size:11px;color:#94a3b8;border:1px solid #334155" onclick="logoutUser()"><i class="fas fa-sign-out-alt" style="margin-right:5px"></i>Logout</button>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ═══ -->
+<main class="main">
+  <div class="topbar no-print">
+    <button class="mobile-menu-btn" onclick="toggleSidebar()" id="menu-btn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+    <div>
+      <div id="page-title" style="font-size:16px;font-weight:800;color:#0f172a">Dashboard</div>
+      <div id="page-sub" style="font-size:12px;color:#64748b">Today's business overview</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="background:#f1f5f9;border-radius:7px;padding:7px 13px;font-size:12px;color:#475569">
+        <i class="fas fa-calendar" style="color:#3b82f6;margin-right:5px"></i><span id="cur-date"></span>
+      </div>
+      <button class="btn btn-success" onclick="openQuickPaymentModal()"><i class="fas fa-rupee-sign" style="margin-right:5px"></i>Payment</button>
+      <button class="btn btn-primary" onclick="openChallanModal()"><i class="fas fa-plus" style="margin-right:5px"></i>New Challan</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="page-dashboard" class="page active">
+    <div class="grid-4" style="margin-bottom:16px">
+      <div class="stat-card"><div class="icon-box" style="background:#dbeafe"><i class="fas fa-rupee-sign" style="color:#1d4ed8"></i></div><div><div class="stat-label">Today's Sales</div><div class="stat-val" id="d-total">—</div><div class="stat-hint" id="d-vs">—</div></div></div>
+      <div class="stat-card"><div class="icon-box" style="background:#dcfce7"><i class="fas fa-money-bill-wave" style="color:#15803d"></i></div><div><div class="stat-label">Cash</div><div class="stat-val" id="d-cash">—</div><div class="stat-hint" id="d-cashc">—</div></div></div>
+      <div class="stat-card"><div class="icon-box" style="background:#ede9fe"><i class="fas fa-mobile-alt" style="color:#6d28d9"></i></div><div><div class="stat-label">UPI</div><div class="stat-val" id="d-upi">—</div><div class="stat-hint">Instant payments</div></div></div>
+      <div class="stat-card"><div class="icon-box" style="background:#fee2e2"><i class="fas fa-credit-card" style="color:#b91c1c"></i></div><div><div class="stat-label">Credit Given</div><div class="stat-val" id="d-credit">—</div><div class="stat-hint" id="d-os">—</div></div></div>
+    </div>
+    <div class="grid-2" style="margin-bottom:16px">
+      <div class="card"><div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:12px">Last 7 Days — Sales by Type</div><div style="height:200px"><canvas id="ch-weekly"></canvas></div></div>
+      <div class="card"><div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:12px">This Month — Payment Mix</div><div style="height:150px"><canvas id="ch-mix"></canvas></div><div id="mix-leg" style="margin-top:10px;display:flex;flex-direction:column;gap:5px"></div></div>
+    </div>
+    <div class="grid-2" style="margin-bottom:16px">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-weight:700;font-size:13px;color:#0f172a"><i class="fas fa-exclamation-circle" style="color:#ef4444;margin-right:5px"></i>Credit Alerts</div>
+          <span onclick="nav('aging')" style="font-size:12px;color:#3b82f6;cursor:pointer">View All →</span>
+        </div>
+        <div id="d-alerts"></div>
+      </div>
+      <div class="card"><div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:12px">Outstanding by Age</div><div style="height:180px"><canvas id="ch-age"></canvas></div></div>
+    </div>
+    <div class="grid-2" style="margin-bottom:16px">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-weight:700;font-size:13px;color:#0f172a">Recent Challans</div>
+          <span onclick="nav('challans')" style="font-size:12px;color:#3b82f6;cursor:pointer">View All →</span>
+        </div>
+        <div class="challan-table-wrap" style="overflow-x:auto"><table><thead><tr><th>Bill No</th><th>Date</th><th>Client</th><th>Items</th><th>Total</th><th>Paid</th><th>Outstanding</th><th>Mode</th><th>Status</th></tr></thead><tbody id="d-recent"></tbody></table></div>
+      </div>
+      <div class="card">
+        <div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:12px"><i class="fas fa-history" style="color:#64748b;margin-right:6px"></i>Recent Activity</div>
+        <div id="d-activity" style="max-height:280px;overflow-y:auto"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DAILY BOOK -->
+  <div id="page-dailybook" class="page">
+    <div class="card no-print" style="margin-bottom:16px">
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div><label>Date</label><input class="inp" id="db-date" type="date" value="" style="width:170px" onchange="renderDailyBook()"></div>
+        <button class="btn btn-ghost" onclick="el('db-date').value=TODAY;renderDailyBook()"><i class="fas fa-calendar-day" style="margin-right:5px"></i>Today</button>
+        <button class="btn" style="background:#dc5800;color:#fff" onclick="downloadDailyBookPDF()"><i class="fas fa-file-pdf" style="margin-right:5px"></i>Download PDF</button>
+        <button class="btn btn-primary" onclick="openChallanModal()"><i class="fas fa-plus" style="margin-right:5px"></i>New Challan</button>
+        <button class="btn btn-success" onclick="openQuickPaymentModal()"><i class="fas fa-rupee-sign" style="margin-right:5px"></i>Record Payment</button>
+      </div>
+    </div>
+    <!-- Summary cards -->
+    <div class="grid-4" style="margin-bottom:16px" id="db-stats"></div>
+    <!-- Cash position banner -->
+    <div id="db-cash-banner" style="margin-bottom:16px"></div>
+    <!-- Two-column: Challans + Payments -->
+    <div class="grid-2" style="margin-bottom:16px">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
+          <div style="font-weight:700;font-size:13px;color:#0f172a"><i class="fas fa-file-alt" style="color:#1d4ed8;margin-right:6px"></i>Challans</div>
+          <div id="db-ch-cnt" style="font-size:12px;color:#64748b"></div>
+        </div>
+        <div id="db-challans-list"></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
+          <div style="font-weight:700;font-size:13px;color:#0f172a"><i class="fas fa-hand-holding-usd" style="color:#15803d;margin-right:6px"></i>Payments Received</div>
+          <div id="db-pm-cnt" style="font-size:12px;color:#64748b"></div>
+        </div>
+        <div id="db-payments-list"></div>
+      </div>
+    </div>
+    <!-- Full chronological ledger of the day -->
+    <div class="card">
+      <div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:12px"><i class="fas fa-list" style="margin-right:6px;color:#64748b"></i>Day Book — All Transactions</div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Time/Order</th><th>Type</th><th>Bill / Ref</th><th>Party</th><th>Details</th><th>Debit (Sale)</th><th>Credit (Payment)</th><th>Mode</th></tr></thead><tbody id="db-all-tx"></tbody></table>
+      <div id="db-no-tx" style="text-align:center;padding:30px;color:#94a3b8;display:none"><i class="fas fa-book-open" style="font-size:28px;display:block;margin-bottom:8px"></i>No transactions on this date</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHALLANS -->
+  <div id="page-challans" class="page">
+    <div id="client-bal-cards" class="grid-3" style="margin-bottom:14px"></div>
+    <div class="card no-print" style="margin-bottom:14px">
+      <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:flex-end">
+        <div><label>Search</label><input class="inp" id="fc-q" placeholder="Bill no, client, product…" style="width:190px" oninput="renderChallans()"></div>
+        <div><label>Client</label><select class="inp" id="fc-cl" style="width:160px" onchange="renderChallans()"><option value="">All Clients</option></select></div>
+        <div><label>Status</label><select class="inp" id="fc-st" onchange="renderChallans()"><option value="">All</option><option>paid</option><option>partial</option><option>pending</option></select></div>
+        <div><label>Mode</label><select class="inp" id="fc-mo" onchange="renderChallans()"><option value="">All</option><option>cash</option><option>upi</option><option>credit</option></select></div>
+        <div><label>Month</label><select class="inp" id="fc-mn" onchange="renderChallans()"><option value="">All</option></select></div>
+        <button class="btn btn-ghost" onclick="resetCF()">Reset</button>
+        <button class="btn" style="background:#dc5800;color:#fff" onclick="downloadChallansListPDF()"><i class="fas fa-file-pdf" style="margin-right:5px"></i>Download PDF</button>
+      </div>
+    </div>
+    <div class="grid-4" style="margin-bottom:14px">
+      <div class="card" style="padding:13px"><div class="stat-label">Filtered</div><div style="font-size:20px;font-weight:800" id="fc-tot">0</div></div>
+      <div class="card" style="padding:13px"><div class="stat-label" style="color:#15803d">Paid</div><div style="font-size:20px;font-weight:800;color:#15803d" id="fc-pa">0</div></div>
+      <div class="card" style="padding:13px"><div class="stat-label" style="color:#92400e">Partial</div><div style="font-size:20px;font-weight:800;color:#92400e" id="fc-pl">0</div></div>
+      <div class="card" style="padding:13px"><div class="stat-label" style="color:#b91c1c">Pending</div><div style="font-size:20px;font-weight:800;color:#b91c1c" id="fc-pn">0</div></div>
+    </div>
+    <div class="card">
+      <div class="challan-table-wrap" style="overflow-x:auto"><table><thead><tr><th>Bill No</th><th>Date</th><th>Client</th><th>Items</th><th>Total</th><th>Paid</th><th>Outstanding</th><th>Mode</th><th>Age</th><th>Status</th><th style="width:120px">Actions</th></tr></thead><tbody id="t-challans"></tbody></table></div>
+      <div id="challan-cards" class="challan-cards"></div>
+      <div id="ch-empty" style="text-align:center;padding:36px;color:#94a3b8;display:none"><i class="fas fa-file-alt" style="font-size:28px;display:block;margin-bottom:8px"></i>No challans found</div>
+    </div>
+  </div>
+
+  <!-- CUSTOMERS -->
+  <div id="page-customers" class="page">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;gap:8px">
+      <button class="btn" style="background:#dc5800;color:#fff" onclick="downloadClientsPDF()"><i class="fas fa-file-pdf" style="margin-right:5px"></i>Download PDF</button>
+      <button class="btn btn-primary" onclick="openClientModal()"><i class="fas fa-plus" style="margin-right:5px"></i>Add Client</button>
+    </div>
+    <div id="client-cards" class="grid-3" style="margin-bottom:18px"></div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;flex-wrap:wrap;gap:8px">
+        <div style="font-weight:700;font-size:13px;color:#0f172a">All Clients</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select class="inp" id="cl-risk" style="width:145px;padding:5px 9px;font-size:12px" onchange="renderClients()">
+            <option value="">All Risk Levels</option>
+            <option value="Critical">Critical (90+ days)</option>
+            <option value="High">High (61-90 days)</option>
+            <option value="Medium">Medium (31-60 days)</option>
+            <option value="Low">Low (0-30 days)</option>
+            <option value="Clear">Clear (Fully paid)</option>
+          </select>
+          <input class="inp" id="cl-q" placeholder="Search name/phone…" style="width:175px" oninput="renderClients()">
+        </div>
+      </div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Client / GST</th><th>Phone</th><th>Total Sales</th><th>Paid</th><th>Outstanding</th><th>Last Challan</th><th>Oldest Pending</th><th>Last Asked</th><th>Risk</th><th>Actions</th></tr></thead><tbody id="t-clients"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- PRODUCTS -->
+  <div id="page-products" class="page">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+      <button class="btn btn-primary" onclick="openProductModal()"><i class="fas fa-plus" style="margin-right:5px"></i>Add Product</button>
+    </div>
+    <div class="card">
+      <div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Product Name</th><th>Description</th><th>Size / Unit</th><th>Rate (₹)</th><th>Actions</th></tr></thead><tbody id="t-products"></tbody></table></div>
+    </div>
+  </div>
+  <!-- COMPANY -->
+  <div id="page-company" class="page">
+    <div class="card" style="max-width:600px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <div style="font-weight:700;font-size:15px;color:#0f172a">Company Details</div>
+        <button class="btn btn-primary btn-sm" onclick="openCompanyModal()"><i class="fas fa-edit" style="margin-right:5px"></i>Edit</button>
+      </div>
+      <div id="co-view"></div>
+    </div>
+    <div class="card" style="max-width:600px;margin-top:16px">
+      <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:14px"><i class="fas fa-database" style="color:#3b82f6;margin-right:7px"></i>Data Management</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="btn btn-ghost admin-only" onclick="exportData()"><i class="fas fa-download" style="margin-right:6px"></i>Export Backup</button>
+        <label class="btn btn-ghost admin-only" style="cursor:pointer;margin:0"><i class="fas fa-upload" style="margin-right:6px"></i>Import Backup<input type="file" accept=".json" onchange="importData(this)" style="display:none"></label>
+        <button class="btn" style="background:#1d6f42;color:#fff" onclick="exportExcel()"><i class="fas fa-file-excel" style="margin-right:6px"></i>Export Excel</button>
+        <button class="btn admin-only" style="background:#b91c1c;color:#fff" onclick="resetToSeed()"><i class="fas fa-undo" style="margin-right:6px"></i>Reset Demo Data</button>
+      </div>
+      <div style="font-size:11px;color:#94a3b8;line-height:1.6">
+        <span class="admin-only"><strong style="color:#64748b">Export Backup</strong> — saves all data as a JSON file for safe keeping.<br>
+        <strong style="color:#64748b">Import Backup</strong> — restores data from a previously exported backup file.<br></span>
+        <strong style="color:#1d6f42">Export Excel</strong> — downloads all data (challans, payments, clients, products, companies, aging) in a multi-sheet .xlsx file.<br>
+        <strong style="color:#b91c1c">Reset</strong> — clears everything and reloads the built-in demo data.
+      </div>
+    </div>
+  </div>
+
+  <!-- MONTHLY REPORT -->
+  <div id="page-monthly" class="page">
+    <div class="card no-print" style="margin-bottom:14px">
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div><label>Client</label><select class="inp" id="r-cl" style="min-width:200px" onchange="renderMonthly()"><option value="">All Clients</option></select></div>
+        <div><label>Month</label><select class="inp" id="r-mn" onchange="renderMonthly()"></select></div>
+        <button class="btn" style="background:#0f172a;color:#fff" onclick="doPrint()"><i class="fas fa-print" style="margin-right:5px"></i>Print</button>
+        <button class="btn" style="background:#dc5800;color:#fff" onclick="downloadReportPDF()"><i class="fas fa-file-pdf" style="margin-right:5px"></i>Download PDF</button>
+        <button class="btn btn-success" id="r-pay-btn" onclick="recordPaymentFromReport()" style="display:none"><i class="fas fa-rupee-sign" style="margin-right:5px"></i>Record Payment</button>
+      </div>
+    </div>
+    <div id="r-area">
+      <div class="print-head" style="text-align:center;padding-bottom:14px;border-bottom:2px solid #0f172a;margin-bottom:18px">
+        <div style="font-size:19px;font-weight:800" id="r-ph-co">—</div>
+        <div id="r-ph-sub" style="color:#475569;font-size:12px;margin-top:3px">—</div>
+      </div>
+      <div class="grid-4" style="margin-bottom:14px" id="r-stats"></div>
+      <div class="card no-print" style="margin-bottom:14px"><div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:11px">3-Month Trend</div><div style="height:160px"><canvas id="ch-trend"></canvas></div></div>
+      <div id="r-payments-section" style="margin-bottom:14px"></div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-weight:700;font-size:13px;color:#0f172a" id="r-title">Challans</div>
+          <div style="font-size:12px;color:#64748b" id="r-cnt"></div>
+        </div>
+        <div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Bill No</th><th>Client</th><th>Items</th><th>Total</th><th>Paid</th><th>Outstanding</th><th>Mode</th><th>Status</th><th class="no-print">Actions</th></tr></thead><tbody id="t-report"></tbody><tfoot id="t-report-foot"></tfoot></table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AGING -->
+  <div id="page-aging" class="page">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px" class="no-print">
+      <button class="btn" style="background:#dc5800;color:#fff" onclick="downloadAgingPDF()"><i class="fas fa-file-pdf" style="margin-right:5px"></i>Download PDF</button>
+    </div>
+    <div class="grid-4" style="margin-bottom:16px">
+      <div class="card" style="border-top:3px solid #22c55e"><div class="stat-label">0–30 Days</div><div style="font-size:22px;font-weight:800;color:#15803d" id="a0">—</div><div class="stat-hint">Fresh credit</div></div>
+      <div class="card" style="border-top:3px solid #f59e0b"><div class="stat-label">31–60 Days</div><div style="font-size:22px;font-weight:800;color:#d97706" id="a31">—</div><div class="stat-hint">Send reminder</div></div>
+      <div class="card" style="border-top:3px solid #ef4444"><div class="stat-label">61–90 Days</div><div style="font-size:22px;font-weight:800;color:#dc2626" id="a61">—</div><div class="stat-hint">Urgent follow-up</div></div>
+      <div class="card" style="border-top:3px solid #7f1d1d"><div class="stat-label">90+ Days</div><div style="font-size:22px;font-weight:800;color:#7f1d1d" id="a90">—</div><div class="stat-hint">Critical overdue</div></div>
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:13px">Client-wise Aging Breakdown</div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Client</th><th>0–30d</th><th>31–60d</th><th>61–90d</th><th>90+d</th><th>Total Outstanding</th><th>Oldest Debt</th><th>Last Asked</th><th>Risk</th></tr></thead><tbody id="t-aging"></tbody></table></div>
+    </div>
+    <div class="card">
+      <div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:13px">All Pending Credits — Oldest First</div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Bill No</th><th>Date</th><th>Client</th><th>Total</th><th>Outstanding</th><th>Days Old</th><th>Last Follow-up</th><th>Status</th><th>Action</th></tr></thead><tbody id="t-aging-ch"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- PAYMENTS -->
+  <div id="page-payments" class="page">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;gap:8px">
+      <button class="btn" style="background:#dc5800;color:#fff" onclick="downloadPaymentsPDF()"><i class="fas fa-file-pdf" style="margin-right:5px"></i>Download PDF</button>
+      <button class="btn btn-success" onclick="openQuickPaymentModal()"><i class="fas fa-rupee-sign" style="margin-right:5px"></i>Record Payment</button>
+    </div>
+    <div class="grid-3" style="margin-bottom:16px">
+      <div class="card"><div class="stat-label">Total Collected</div><div class="stat-val" style="color:#15803d" id="p-tot">—</div></div>
+      <div class="card"><div class="stat-label">This Month</div><div class="stat-val" id="p-mn">—</div></div>
+      <div class="card"><div class="stat-label">Total Entries</div><div class="stat-val" id="p-cnt">—</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px">
+        <div style="font-weight:700;font-size:13px;color:#0f172a">Payment History</div>
+        <div id="p-filter-client" style="display:flex;gap:8px;align-items:center"><label style="margin:0;font-size:12px">Filter:</label>
+          <select class="inp" id="p-cl-filter" style="width:160px;padding:5px 9px;font-size:12px" onchange="renderPayments()"><option value="">All Clients</option></select>
+        </div>
+      </div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Client</th><th>Amount</th><th>Mode</th><th>Note</th><th></th></tr></thead><tbody id="t-payments"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- CUSTOMER DETAIL -->
+  <div id="page-customer-detail" class="page">
+    <div style="margin-bottom:14px">
+      <button class="btn btn-ghost btn-sm" onclick="goBackFromDetail()"><i class="fas fa-arrow-left" style="margin-right:5px"></i>Back</button>
+    </div>
+    <div class="cd-hdr" id="cd-hdr-card"></div>
+    <div class="cd-tabs" id="cd-tabs">
+      <button class="cd-tab active" onclick="showCdTab('overview')">Overview</button>
+      <button class="cd-tab" onclick="showCdTab('challans')">Challans</button>
+      <button class="cd-tab" onclick="showCdTab('payments')">Payments</button>
+      <button class="cd-tab" onclick="showCdTab('ledger')">Ledger</button>
+    </div>
+    <div class="cd-pane active" id="cdp-overview"></div>
+    <div class="cd-pane" id="cdp-challans"></div>
+    <div class="cd-pane" id="cdp-payments"></div>
+    <div class="cd-pane" id="cdp-ledger"></div>
+  </div>
+
+  <!-- FOLLOW-UPS -->
+  <div id="page-followups" class="page">
+    <div class="grid-3" style="margin-bottom:16px" id="fu-stats"></div>
+    <div id="fu-list"></div>
+  </div>
+
+  <!-- COMPANIES -->
+  <div id="page-companies" class="page">
+    <div class="grid-4" style="margin-bottom:16px" id="co-stats"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-weight:700;font-size:14px;color:#0f172a">Your Companies</div>
+      <button class="btn btn-primary btn-sm admin-only" onclick="openAddCompanyModal()"><i class="fas fa-plus" style="margin-right:5px"></i>Add Company</button>
+    </div>
+    <div id="co-list" style="margin-bottom:18px"></div>
+    <div class="card" style="max-width:600px">
+      <div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:14px"><i class="fas fa-database" style="color:#3b82f6;margin-right:7px"></i>Data Management</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="btn btn-ghost admin-only" onclick="exportData()"><i class="fas fa-download" style="margin-right:6px"></i>Export Backup</button>
+        <label class="btn btn-ghost admin-only" style="cursor:pointer;margin:0"><i class="fas fa-upload" style="margin-right:6px"></i>Import Backup<input type="file" accept=".json" onchange="importData(this)" style="display:none"></label>
+        <button class="btn" style="background:#1d6f42;color:#fff" onclick="exportExcel()"><i class="fas fa-file-excel" style="margin-right:6px"></i>Export Excel</button>
+        <button class="btn admin-only" style="background:#b91c1c;color:#fff" onclick="resetToSeed()"><i class="fas fa-undo" style="margin-right:6px"></i>Reset Demo Data</button>
+      </div>
+      <div style="font-size:11px;color:#94a3b8;line-height:1.6">
+        <span class="admin-only"><strong style="color:#64748b">Export Backup</strong> — saves all data as a JSON backup file.<br>
+        <strong style="color:#64748b">Import Backup</strong> — restores from a previously exported backup file.<br></span>
+        <strong style="color:#1d6f42">Export Excel</strong> — downloads all data in a multi-sheet .xlsx file.<br>
+        <strong style="color:#b91c1c">Reset</strong> — clears everything and reloads the built-in demo data.
+      </div>
+    </div>
+  </div>
+
+  <!-- MANAGE USERS (admin only) -->
+  <div id="page-users" class="page">
+    <div class="grid-3" style="margin-bottom:16px" id="u-stats"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-weight:700;font-size:15px;color:#0f172a">Team Access</div>
+        <div style="font-size:12px;color:#64748b;margin-top:2px">Users login via Gmail OTP — no passwords needed</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openAddUserModal()"><i class="fas fa-user-plus" style="margin-right:5px"></i>Add User</button>
+    </div>
+    <div class="card">
+      <div id="u-inactive-note" style="display:none;font-size:12px;color:#94a3b8;margin-bottom:10px"></div>
+      <div style="overflow-x:auto" id="u-list"></div>
+    </div>
+    <div class="card" style="margin-top:16px;max-width:640px">
+      <div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:10px"><i class="fas fa-shield-alt" style="color:#1d4ed8;margin-right:6px"></i>Role Permissions</div>
+      <table style="font-size:12px">
+        <thead><tr><th>Feature</th><th>Admin</th><th>Staff</th></tr></thead>
+        <tbody>
+          <tr><td>Challans, Clients, Payments, Reports</td><td style="color:#15803d">✓</td><td style="color:#15803d">✓</td></tr>
+          <tr><td>Company settings & logo upload</td><td style="color:#15803d">✓</td><td style="color:#b91c1c">✗</td></tr>
+          <tr><td>Manage users</td><td style="color:#15803d">✓</td><td style="color:#b91c1c">✗</td></tr>
+          <tr><td>Backup import / export</td><td style="color:#15803d">✓</td><td style="color:#b91c1c">✗</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+
+<!-- ═══ BOTTOM NAV (mobile) ═══ -->
+<div id="bn-ov" onclick="closeMobileMore()"></div>
+<div id="bn-more">
+  <div style="display:flex;align-items:center;justify-content:space-between;color:#e2e8f0;font-size:13px;font-weight:700">More<button onclick="closeMobileMore()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:18px">×</button></div>
+  <div class="bn-more-grid">
+    <button class="bn-more-item" onclick="closeMobileMore();nav('dailybook')"><i class="fas fa-book-open"></i>Daily Book</button>
+    <button class="bn-more-item" onclick="closeMobileMore();nav('followups')"><i class="fas fa-phone-alt"></i>Follow-ups</button>
+    <button class="bn-more-item" onclick="closeMobileMore();nav('monthly')"><i class="fas fa-calendar-alt"></i>Report</button>
+    <button class="bn-more-item" onclick="closeMobileMore();nav('aging')"><i class="fas fa-clock"></i>Aging</button>
+    <button class="bn-more-item" onclick="closeMobileMore();nav('products')"><i class="fas fa-boxes"></i>Products</button>
+    <button class="bn-more-item admin-only" id="bn-companies" onclick="closeMobileMore();nav('companies')"><i class="fas fa-building"></i>Companies</button>
+    <button class="bn-more-item" id="bn-users" style="display:none" onclick="closeMobileMore();nav('users')"><i class="fas fa-user-shield"></i>Users</button>
+  </div>
+</div>
+<nav id="bottom-nav">
+  <div class="bn-wrap">
+    <button class="bn-item active" id="bn-dashboard" onclick="nav('dashboard')"><i class="fas fa-chart-pie"></i>Home</button>
+    <button class="bn-item" id="bn-challans" onclick="nav('challans')"><i class="fas fa-file-alt"></i>Challans</button>
+    <button class="bn-item" id="bn-customers" onclick="nav('customers')"><i class="fas fa-users"></i>Customers</button>
+    <button class="bn-item" id="bn-payments" onclick="nav('payments')"><i class="fas fa-hand-holding-usd"></i>Payments</button>
+    <button class="bn-item" onclick="toggleMobileMore()"><i class="fas fa-th"></i>More</button>
+  </div>
+</nav>
+
+<!-- ═══ MODAL ═══ -->
+<div class="modal-wrap" id="modal">
+  <div class="modal-overlay" onclick="closeModal()"></div>
+  <div class="modal-box" id="modal-box">
+    <div class="modal-head">
+      <h2 id="modal-title">—</h2>
+      <button onclick="closeModal()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#94a3b8;line-height:1">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-foot" id="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="modal-save" onclick="handleSave()">Save</button>
+    </div>
+  </div>
+</div>
+<script>
+// ═══════════════════════════════════════════════
+//  SIDEBAR TOGGLE (mobile)
+// ═══════════════════════════════════════════════
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebar-overlay');
+  sb.classList.toggle('mobile-open');
+  ov.classList.toggle('active');
+  document.body.classList.toggle('sidebar-open');
+}
+function closeSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebar-overlay');
+  sb.classList.remove('mobile-open');
+  ov.classList.remove('active');
+  document.body.classList.remove('sidebar-open');
+}
+
+// ═══════════════════════════════════════════════
+//  SEED DATA
+// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+//  STORE
+// ═══════════════════════════════════════════════
+function uid() { return Date.now().toString(36) + Math.random().toString(36).substr(2,5); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ═══════════════════════════════════════════════
+//  COMPUTED  — client-level FIFO payment model
+// ═══════════════════════════════════════════════
+let _allocCache = {};
+function clearAllocCache() { _allocCache = {}; }
+
+function computeAllocation(clientId) {
+  const creditChs = APP.challans
+    .filter(c => c.clientId === clientId && c.mode === 'credit')
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  let remaining = APP.payments
+    .filter(p => p.clientId === clientId)
+    .reduce((s, p) => s + p.amount, 0);
+  const alloc = {};
+  for (const ch of creditChs) {
+    if (remaining <= 0) break;
+    const apply = Math.min(remaining, ch.total);
+    alloc[ch.id] = apply;
+    remaining -= apply;
+  }
+  return { alloc, advance: Math.max(0, remaining) };
+}
+
+function getClientAlloc(clientId) {
+  if (!_allocCache[clientId]) _allocCache[clientId] = computeAllocation(clientId);
+  return _allocCache[clientId];
+}
+
+function clientBalance(clientId) {
+  const creditSales = APP.challans
+    .filter(c => c.clientId === clientId && c.mode === 'credit')
+    .reduce((s, c) => s + c.total, 0);
+  const totalPaid = APP.payments
+    .filter(p => p.clientId === clientId)
+    .reduce((s, p) => s + p.amount, 0);
+  return creditSales - totalPaid;
+}
+
+function paidAmt(ch) {
+  if (ch.mode !== 'credit') return ch.total;
+  return getClientAlloc(ch.clientId).alloc[ch.id] || 0;
+}
+function outstanding(ch) {
+  if (ch.mode !== 'credit') return 0;
+  return ch.total - paidAmt(ch);
+}
+function challanStatus(ch) {
+  if (ch.mode !== 'credit') return 'paid';
+  const pa = paidAmt(ch);
+  if (pa >= ch.total) return 'paid';
+  if (pa > 0) return 'partial';
+  return 'pending';
+}
+function daysOld(date) { return Math.floor((new Date(TODAY) - new Date(date)) / 86400000); }
+
+function clientStats(id) {
+  const chs = APP.challans.filter(c => c.clientId === id);
+  const totalSales = chs.reduce((s, c) => s + c.total, 0);
+  const totalPaid  = APP.payments.filter(p => p.clientId === id).reduce((s, p) => s + p.amount, 0);
+  const bal = clientBalance(id);
+  const os      = Math.max(0, bal);
+  const advance = Math.max(0, -bal);
+  const sorted  = [...chs].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const lastCh  = sorted[0];
+  const lastPmt = [...APP.payments.filter(p => p.clientId === id)].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+  const pending = chs.filter(c => c.mode === 'credit' && outstanding(c) > 0);
+  const oldest  = pending.length ? Math.max(...pending.map(c => daysOld(c.date))) : 0;
+  return { totalSales, totalPaid, os, advance, lastCh, lastPmt, oldest };
+}
+function agingBuckets(clientId) {
+  const src = clientId
+    ? APP.challans.filter(c => c.clientId === clientId && c.mode === 'credit')
+    : cChallans().filter(c => c.mode === 'credit');
+  return src.filter(c => outstanding(c) > 0).reduce((a, c) => {
+    const d = daysOld(c.date), o = outstanding(c);
+    if (d <= 30) a.b0 += o; else if (d <= 60) a.b31 += o; else if (d <= 90) a.b61 += o; else a.b90 += o;
+    return a;
+  }, {b0:0, b31:0, b61:0, b90:0});
+}
+function riskLevel(oldest, os) {
+  if (os <= 0)     return {label:'Clear',    cls:'badge-clear'};
+  if (oldest > 90) return {label:'Critical', cls:'badge-critical'};
+  if (oldest > 60) return {label:'High',     cls:'badge-high'};
+  if (oldest > 30) return {label:'Medium',   cls:'badge-medium'};
+  return                  {label:'Low',      cls:'badge-low'};
+}
+function markAskedToday(clientId) {
+  const cl = APP.clients.find(c => c.id === clientId);
+  if (!cl) return;
+  cl.lastAsked = TODAY;
+  saveStore();
+  renderAging(); renderClients(); renderDashboard();
+  if(el('page-followups')&&el('page-followups').classList.contains('active')) renderFollowups();
+  if(el('page-customer-detail')&&el('page-customer-detail').classList.contains('active')) renderCustomerDetail();
+}
+
+// ═══════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════
+function fmt(n) { return '₹'+Math.abs(n).toLocaleString('en-IN'); }
+function fmtPdf(n) { return 'Rs.'+Math.abs(n).toLocaleString('en-IN'); }
+function fmtD(d) { return d ? new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—'; }
+function clientName(id) { return APP.clients.find(c=>c.id===id)?.name || '—'; }
+function nextBillNo() {
+  const co = getActiveCompany();
+  const prefix = (co.billPrefix || '2526') + '/';
+  const nums = cChallans().map(c => parseInt(c.billNo.split('/')[1]||0)).filter(n=>!isNaN(n));
+  const next = nums.length ? Math.max(...nums)+1 : 1;
+  return prefix + String(next).padStart(3,'0');
+}
+const CHARTS = {};
+function mkChart(id, cfg) { if(CHARTS[id]) CHARTS[id].destroy(); const c = document.getElementById(id); if(!c) return; CHARTS[id]=new Chart(c,cfg); }
+function el(id){ return document.getElementById(id); }
+function toast(msg, type='t-ok') {
+  const t = document.createElement('div');
+  t.className = 'toast '+type;
+  t.textContent = msg;
+  el('toast-wrap').appendChild(t);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>t.classList.add('show')));
+  setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),220);},2600);
+}
+function buildMonthOptions(selId, withAll) {
+  const sel = el(selId); if(!sel) return;
+  const prev = sel.value;
+  const mSet = new Set(cChallans().map(c=>c.date.slice(0,7)));
+  mSet.add(TODAY.slice(0,7));
+  const months = [...mSet].sort().reverse().slice(0,18);
+  let html = withAll ? '<option value="">All</option>' : '';
+  html += months.map(m=>{
+    const lbl = new Date(m+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+    return `<option value="${m}">${lbl}</option>`;
+  }).join('');
+  sel.innerHTML = html;
+  if(prev && [...sel.options].some(o=>o.value===prev)) sel.value=prev;
+  else if(!withAll && sel.options.length) sel.value=sel.options[0].value;
+}
+
+// ═══════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════
+const PAGE_CFG = {
+  dashboard:       {title:'Dashboard',         sub:"Today's business overview"},
+  dailybook:       {title:'Daily Book',        sub:'All transactions for a selected date'},
+  challans:        {title:'Challans',          sub:'All billing records — create, edit, view'},
+  customers:       {title:'Customers',         sub:'Manage buyers & view party ledger'},
+  'customer-detail':{title:'Customer Detail',  sub:'Account overview, challans, payments & ledger'},
+  followups:       {title:'Follow-ups',        sub:'Clients with outstanding dues — sorted by risk'},
+  products:        {title:'Products',          sub:'Manage product catalog'},
+  companies:       {title:'Companies',         sub:'Manage your companies & data'},
+  company:         {title:'Companies',         sub:'Manage your companies & data'},
+  monthly:         {title:'Monthly Report',    sub:'Challan-wise monthly statement with payments'},
+  aging:           {title:'Aging Analysis',    sub:'Outstanding credit by age — follow up tracker'},
+  payments:        {title:'Payment Log',       sub:'All payment collections — record & manage'},
+  users:           {title:'Manage Users',      sub:'Add staff, control access via OTP login'},
+};
+
+function nav(name) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const pg=document.getElementById('page-'+name); if(pg) pg.classList.add('active');
+  const ni = document.getElementById('nav-'+name); if(ni) ni.classList.add('active');
+  const cfg = PAGE_CFG[name];
+  if(cfg){ document.getElementById('page-title').textContent=cfg.title; document.getElementById('page-sub').textContent=cfg.sub; }
+  const renderMap={dailybook:renderDailyBook,challans:renderChallans,customers:renderCustomers,clients:renderClients,'customer-detail':renderCustomerDetail,followups:renderFollowups,products:renderProducts,company:renderCompanies,companies:renderCompanies,monthly:renderMonthly,aging:renderAging,payments:renderPayments,users:renderUsers};
+  (renderMap[name]||function(){})();
+  if(name==='dashboard') renderDashboard();
+  // Bottom nav sync
+  const BN_MAP={dashboard:'bn-dashboard',challans:'bn-challans',customers:'bn-customers',payments:'bn-payments'};
+  document.querySelectorAll('.bn-item').forEach(b=>b.classList.remove('active'));
+  const bnId=BN_MAP[name]; if(bnId&&el(bnId)) el(bnId).classList.add('active');
+  closeSidebar();
+}
+
+// ═══════════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════════
+function renderDashboard() {
+  const todayChs  = cChallans().filter(c=>c.date===TODAY);
+  const ydayD=new Date(TODAY);ydayD.setDate(ydayD.getDate()-1);
+  const ydayChs   = cChallans().filter(c=>c.date===ydayD.toISOString().split('T')[0]);
+  const tTotal    = todayChs.reduce((s,c)=>s+c.total,0);
+  const yTotal    = ydayChs.reduce((s,c)=>s+c.total,0);
+  const tCash     = todayChs.filter(c=>c.mode==='cash').reduce((s,c)=>s+c.total,0);
+  const tUPI      = todayChs.filter(c=>c.mode==='upi').reduce((s,c)=>s+c.total,0);
+  const tCredit   = todayChs.filter(c=>c.mode==='credit').reduce((s,c)=>s+c.total,0);
+  const totalOS   = cChallans().filter(c=>outstanding(c)>0).reduce((s,c)=>s+outstanding(c),0);
+  const nOSC      = cClients().filter(cl=>clientStats(cl.id).os>0).length;
+
+  el('d-total').textContent  = fmt(tTotal);
+  el('d-cash').textContent   = fmt(tCash);
+  el('d-upi').textContent    = fmt(tUPI);
+  el('d-credit').textContent = fmt(tCredit);
+  el('d-cashc').textContent  = todayChs.length+' challans today';
+  el('d-os').textContent     = 'Total outstanding: '+fmt(totalOS);
+  el('sb-os').textContent    = fmt(totalOS);
+  el('sb-cl').textContent    = nOSC+' clients with credit';
+  const chg = yTotal>0 ? (((tTotal-yTotal)/yTotal)*100).toFixed(1) : 0;
+  el('d-vs').innerHTML = chg>=0 ? '<span style="color:#15803d">↑'+chg+'%</span> vs yesterday' : '<span style="color:#b91c1c">↓'+Math.abs(chg)+'%</span> vs yesterday';
+
+  const topAl = cClients().map(cl=>({cl,...clientStats(cl.id)})).filter(x=>x.os>0).sort((a,b)=>b.oldest-a.oldest).slice(0,4);
+  el('d-alerts').innerHTML = topAl.length ? topAl.map(a=>{
+    const r=riskLevel(a.oldest,a.os);
+    const laD=a.cl.lastAsked ? daysOld(a.cl.lastAsked) : null;
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9"><div><div style="font-size:13px;font-weight:700">'+a.cl.name+'</div><div style="font-size:11px;color:#64748b">Oldest: '+a.oldest+'d · Last asked: '+(laD!==null?laD+'d ago':'<span style=color:#b91c1c>Never!</span>')+'</div></div><div style="text-align:right"><div style="font-size:13px;font-weight:800;color:#b91c1c">'+fmt(a.os)+'</div><span class="badge '+r.cls+'" style="margin-top:2px">'+r.label+'</span></div></div>';
+  }).join('') : '<div style="color:#94a3b8;font-size:13px;padding:12px 0">No outstanding credits 🎉</div>';
+
+  const recent = [...cChallans()].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,8);
+  el('d-recent').innerHTML = recent.map(c=>challanTR(c)).join('');
+
+  renderWeeklyChart();
+  renderMixChart();
+  renderAgingBarChart();
+  if (typeof renderActivityFeed === 'function') renderActivityFeed();
+}
+
+// ═══════════════════════════════════════════════
+//  DAILY BOOK
+// ═══════════════════════════════════════════════
+function renderDailyBook() {
+  const dateEl = el('db-date');
+  const date = dateEl.value || TODAY;
+  if (!dateEl.value) dateEl.value = TODAY;
+
+  const dayChs  = cChallans().filter(c => c.date === date);
+  const dayPmts = cPayments().filter(p => p.date === date);
+
+  const tSales  = dayChs.reduce((s,c) => s+c.total, 0);
+  const tCashCh = dayChs.filter(c => c.mode==='cash').reduce((s,c) => s+c.total, 0);
+  const tUPICh  = dayChs.filter(c => c.mode==='upi').reduce((s,c) => s+c.total, 0);
+  const tCred   = dayChs.filter(c => c.mode==='credit').reduce((s,c) => s+c.total, 0);
+  const tCashPmt= dayPmts.filter(p => p.mode==='cash').reduce((s,p) => s+p.amount, 0);
+  const tUPIPmt = dayPmts.filter(p => p.mode==='upi').reduce((s,p) => s+p.amount, 0);
+  const tPmts   = dayPmts.reduce((s,p) => s+p.amount, 0);
+  const cashInHand = tCashCh + tCashPmt;
+
+  // Stat cards
+  el('db-stats').innerHTML = `
+    <div class="stat-card"><div class="icon-box" style="background:#dbeafe"><i class="fas fa-rupee-sign" style="color:#1d4ed8"></i></div>
+      <div><div class="stat-label">Total Sales</div><div class="stat-val">${fmt(tSales)}</div>
+      <div class="stat-hint">${dayChs.length} challan${dayChs.length!==1?'s':''}</div></div></div>
+    <div class="stat-card"><div class="icon-box" style="background:#dcfce7"><i class="fas fa-money-bill-wave" style="color:#15803d"></i></div>
+      <div><div class="stat-label">Cash Collected</div><div class="stat-val" style="color:#15803d">${fmt(cashInHand)}</div>
+      <div class="stat-hint">Sales ${fmt(tCashCh)} + Pmts ${fmt(tCashPmt)}</div></div></div>
+    <div class="stat-card"><div class="icon-box" style="background:#ede9fe"><i class="fas fa-mobile-alt" style="color:#6d28d9"></i></div>
+      <div><div class="stat-label">UPI (Sales + Received)</div><div class="stat-val" style="color:#6d28d9">${fmt(tUPICh+tUPIPmt)}</div>
+      <div class="stat-hint">Sales ${fmt(tUPICh)} + Pmts ${fmt(tUPIPmt)}</div></div></div>
+    <div class="stat-card"><div class="icon-box" style="background:#fee2e2"><i class="fas fa-credit-card" style="color:#b91c1c"></i></div>
+      <div><div class="stat-label">Credit Given</div><div class="stat-val" style="color:#b91c1c">${fmt(tCred)}</div>
+      <div class="stat-hint">Pmts received: ${fmt(tPmts)}</div></div></div>`;
+
+  // Cash position banner
+  el('db-cash-banner').innerHTML = `
+    <div class="card" style="background:#0f172a;color:#fff;padding:14px 20px">
+      <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:center">
+        <div style="flex:1">
+          <div style="font-size:11px;opacity:.7;text-transform:uppercase;letter-spacing:.07em">Day's Cash Position</div>
+          <div style="font-size:22px;font-weight:800;margin-top:2px">${fmt(cashInHand)}</div>
+          <div style="font-size:11px;opacity:.6;margin-top:2px">Cash sales ${fmt(tCashCh)} + Cash payments received ${fmt(tCashPmt)}</div>
+        </div>
+        <div style="display:flex;gap:24px;flex-wrap:wrap">
+          <div><div style="font-size:10px;opacity:.6">UPI Received</div><div style="font-size:16px;font-weight:700;color:#a78bfa">${fmt(tUPICh+tUPIPmt)}</div></div>
+          <div><div style="font-size:10px;opacity:.6">Credit Pending</div><div style="font-size:16px;font-weight:700;color:#f87171">${fmt(tCred)}</div></div>
+          <div><div style="font-size:10px;opacity:.6">Total Activity</div><div style="font-size:16px;font-weight:700;color:#60a5fa">${fmt(tSales+tPmts)}</div></div>
+        </div>
+      </div>
+    </div>`;
+
+  // Challans list
+  el('db-ch-cnt').textContent = dayChs.length + ' challan' + (dayChs.length!==1?'s':'');
+  el('db-challans-list').innerHTML = dayChs.length ? `
+    <table><thead><tr><th>Bill No</th><th>Client</th><th>Total</th><th>Mode</th><th></th></tr></thead>
+    <tbody>${dayChs.sort((a,b)=>a.billNo.localeCompare(b.billNo)).map(c=>`<tr>
+      <td><strong style="color:#1d4ed8;cursor:pointer" onclick="openChallanView('${c.id}')">${c.billNo}</strong></td>
+      <td>${clientName(c.clientId)}</td>
+      <td><strong>${fmt(c.total)}</strong></td>
+      <td><span class="badge badge-${c.mode}">${c.mode.toUpperCase()}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="openChallanView('${c.id}')"><i class="fas fa-eye"></i></button></td>
+    </tr>`).join('')}</tbody></table>` :
+    '<div style="text-align:center;padding:20px;color:#94a3b8;font-size:13px"><i class="fas fa-file-alt" style="display:block;font-size:20px;margin-bottom:6px"></i>No challans on this date</div>';
+
+  // Payments list
+  el('db-pm-cnt').textContent = dayPmts.length + ' payment' + (dayPmts.length!==1?'s':'') + (tPmts?` · ${fmt(tPmts)}`:'');
+  el('db-payments-list').innerHTML = dayPmts.length ? `
+    <table><thead><tr><th>Client</th><th>Amount</th><th>Mode</th><th>Note</th></tr></thead>
+    <tbody>${dayPmts.sort((a,b)=>new Date(a.date)-new Date(b.date)).map(p=>`<tr>
+      <td><strong>${clientName(p.clientId)}</strong></td>
+      <td style="font-weight:700;color:#15803d">${fmt(p.amount)}</td>
+      <td><span class="badge badge-${p.mode}">${p.mode.toUpperCase()}</span></td>
+      <td style="color:#64748b;font-size:12px">${p.note||'—'}</td>
+    </tr>`).join('')}</tbody></table>` :
+    '<div style="text-align:center;padding:20px;color:#94a3b8;font-size:13px"><i class="fas fa-hand-holding-usd" style="display:block;font-size:20px;margin-bottom:6px"></i>No payments recorded this date</div>';
+
+  // All transactions table
+  const allTx = [];
+  dayChs.forEach((c,i) => allTx.push({order:i+1, type:'challan', ref:c.billNo, party:clientName(c.clientId), desc:c.items.map(i=>i.name).join(', '), debit:c.total, credit:0, mode:c.mode, id:c.id}));
+  dayPmts.forEach((p,i) => allTx.push({order:1000+i, type:'payment', ref:'PMT', party:clientName(p.clientId), desc:p.note||'Payment received', debit:0, credit:p.amount, mode:p.mode}));
+  allTx.sort((a,b)=>a.order-b.order);
+
+  const txBody = el('db-all-tx'), noTx = el('db-no-tx');
+  if (!allTx.length) { txBody.innerHTML=''; noTx.style.display='block'; return; }
+  noTx.style.display = 'none';
+  txBody.innerHTML = allTx.map((tx,i) => `<tr style="${tx.type==='payment'?'background:#f0fdf4':''}">
+    <td style="color:#94a3b8;font-size:12px">${i+1}</td>
+    <td><span class="badge" style="${tx.type==='challan'?'background:#dbeafe;color:#1d4ed8':'background:#dcfce7;color:#15803d'}">${tx.type==='challan'?'CHALLAN':'PAYMENT'}</span></td>
+    <td><strong style="${tx.type==='challan'?'color:#1d4ed8;cursor:pointer':'color:#15803d'}" ${tx.type==='challan'?`onclick="openChallanView('${tx.id}')"`:''}>${tx.ref}</strong></td>
+    <td>${tx.party}</td>
+    <td style="font-size:12px;color:#64748b;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${tx.desc}</td>
+    <td style="font-weight:700;color:${tx.debit>0?'#b91c1c':'#94a3b8'}">${tx.debit>0?fmt(tx.debit):'—'}</td>
+    <td style="font-weight:700;color:${tx.credit>0?'#15803d':'#94a3b8'}">${tx.credit>0?fmt(tx.credit):'—'}</td>
+    <td><span class="badge badge-${tx.mode}">${tx.mode.toUpperCase()}</span></td>
+  </tr>`).join('');
+}
+
+function openQuickPaymentModal() {
+  // Quick pay: select client first, then amount
+  const clOpts = cClients().map(c => {
+    const bal = clientBalance(c.id);
+    const os = Math.max(0, bal);
+    const adv = Math.max(0, -bal);
+    const hint = adv > 0 ? ` (Advance: ${fmt(adv)})` : os > 0 ? ` (Owes: ${fmt(os)})` : ' (Clear)';
+    return `<option value="${c.id}">${c.name}${hint}</option>`;
+  }).join('');
+  const html = `
+    <div class="form-row"><label>Select Client *</label>
+      <select class="inp" id="qp-client" onchange="updateQuickPayInfo()">${clOpts}</select>
+    </div>
+    <div id="qp-info" style="background:#f8fafc;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#64748b"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-row"><label>Amount (₹) *</label><input class="inp" id="qp-amt" type="number" min="0.01" step="0.01"></div>
+      <div class="form-row"><label>Date *</label><input class="inp" id="qp-date" type="date" value="${TODAY}"></div>
+      <div class="form-row"><label>Mode</label><select class="inp" id="qp-mode"><option value="cash">Cash</option><option value="upi">UPI</option></select></div>
+      <div class="form-row"><label>Note</label><input class="inp" id="qp-note" placeholder="e.g. against March bills"></div>
+    </div>`;
+  openModal('Record Payment', html, saveQuickPayment);
+  setTimeout(updateQuickPayInfo, 50);
+}
+function updateQuickPayInfo() {
+  const cId = parseInt(el('qp-client')?.value);
+  if (!cId) return;
+  const bal = clientBalance(cId);
+  const os = Math.max(0, bal), adv = Math.max(0, -bal);
+  const info = el('qp-info');
+  if (info) info.innerHTML = os > 0
+    ? `<span style="color:#b91c1c;font-weight:700">Outstanding: ${fmt(os)}</span>`
+    : adv > 0
+      ? `<span style="color:#15803d;font-weight:700">Advance Balance: ${fmt(adv)} — new payment adds to advance</span>`
+      : '<span style="color:#15803d">Balance clear ✓</span>';
+}
+function saveQuickPayment() {
+  const clientId = parseInt(el('qp-client')?.value);
+  const amt = parseFloat(el('qp-amt')?.value) || 0;
+  if (!clientId) { alert('Select a client.'); return; }
+  if (!amt || amt <= 0) { alert('Enter a valid amount.'); return; }
+  APP.payments.push({id:'p'+uid(), companyId:APP.activeCompanyId, clientId, date:el('qp-date').value, amount:amt, mode:el('qp-mode').value, note:el('qp-note').value});
+  saveStore(); closeModal();
+  toast('Payment recorded'); refreshAfterPayment();
+}
+
+function refreshAfterPayment() {
+  clearAllocCache();
+  // Always refresh dashboard (also updates sidebar stats)
+  renderDashboard();
+  // Refresh follow-ups badge + page if active
+  var fuPage=el('page-followups');
+  if(fuPage&&fuPage.classList.contains('active')){
+    renderFollowups();
+  } else {
+    var fuCount=cClients().filter(function(cl){return clientStats(cl.id).os>0;}).length;
+    var fuCnt=el('nav-fu-cnt');
+    if(fuCnt){fuCnt.textContent=fuCount;fuCnt.style.display=fuCount?'':'none';}
+  }
+  // Refresh whichever page is currently visible
+  var pageMap=[
+    ['page-challans',       renderChallans],
+    ['page-customers',      renderCustomers],
+    ['page-customer-detail',renderCustomerDetail],
+    ['page-monthly',        renderMonthly],
+    ['page-aging',          renderAging],
+    ['page-payments',       renderPayments],
+    ['page-dailybook',      renderDailyBook],
+    ['page-companies',      renderCompanies]
+  ];
+  pageMap.forEach(function(pair){
+    var pg=el(pair[0]);
+    if(pg&&pg.classList.contains('active')) pair[1]();
+  });
+}
+
+function downloadDailyBookPDF() {
+  if (!window.jspdf) { alert('PDF library not loaded.'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const W=210, mg=14, date=el('db-date').value||TODAY;
+  const dayChs  = cChallans().filter(c=>c.date===date);
+  const dayPmts = cPayments().filter(p=>p.date===date);
+  const tCashCh = dayChs.filter(c=>c.mode==='cash').reduce((s,c)=>s+c.total,0);
+  const tCashPmt= dayPmts.filter(p=>p.mode==='cash').reduce((s,p)=>s+p.amount,0);
+  const tUPI    = dayChs.filter(c=>c.mode==='upi').reduce((s,c)=>s+c.total,0)+dayPmts.filter(p=>p.mode==='upi').reduce((s,p)=>s+p.amount,0);
+  const tCred   = dayChs.filter(c=>c.mode==='credit').reduce((s,c)=>s+c.total,0);
+  const tPmts   = dayPmts.reduce((s,p)=>s+p.amount,0);
+  const tSales  = dayChs.reduce((s,c)=>s+c.total,0);
+
+  pdfHeader(doc, 'Daily Book  ·  ' + fmtD(date) + '  ·  Generated: ' + fmtD(TODAY), false);
+
+  let y=43;
+  const boxes=[
+    {l:'Total Sales', v:fmtPdf(tSales), c:[29,78,216]},
+    {l:'Cash In Hand',v:fmtPdf(tCashCh+tCashPmt),c:[21,128,61]},
+    {l:'UPI Received', v:fmtPdf(tUPI),c:[109,40,217]},
+    {l:'Credit Given', v:fmtPdf(tCred),c:[185,28,28]},
+  ];
+  boxes.forEach((b,i)=>{
+    const x=mg+i*45;
+    doc.setFillColor(248,250,252); doc.rect(x,y,43,16,'F');
+    doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(100,116,139);doc.text(b.l,x+2,y+7);
+    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(...b.c);doc.text(b.v,x+2,y+14);
+  });
+  y+=22;
+
+  if(dayChs.length){
+    doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(15,23,42);doc.text('Challans — '+dayChs.length+' bills',mg,y);y+=4;
+    doc.autoTable({startY:y,margin:{left:mg,right:mg},
+      head:[['Bill No','Client','Items','Total (Rs.)','Mode']],
+      body:dayChs.map(c=>[c.billNo,clientName(c.clientId),c.items.map(i=>i.name+'('+i.qty+(i.unit==='piece'?'pcs':'m')+')').join(', '),c.total.toLocaleString('en-IN'),c.mode.toUpperCase()]),
+      headStyles:{fillColor:[15,23,42],textColor:[255,255,255],fontSize:8,fontStyle:'bold',cellPadding:3},
+      bodyStyles:{fontSize:8,cellPadding:2.5,textColor:[51,65,85]},alternateRowStyles:{fillColor:[248,250,252]},
+      columnStyles:{3:{halign:'right',fontStyle:'bold'}}
+    });
+    y=doc.lastAutoTable.finalY+8;
+  }
+  if(dayPmts.length){
+    doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(15,23,42);doc.text('Payments Received — '+fmtPdf(tPmts),mg,y);y+=4;
+    doc.autoTable({startY:y,margin:{left:mg,right:mg},
+      head:[['Client','Amount (Rs.)','Mode','Note']],
+      body:dayPmts.map(p=>[clientName(p.clientId),p.amount.toLocaleString('en-IN'),p.mode.toUpperCase(),p.note||'—']),
+      headStyles:{fillColor:[21,128,61],textColor:[255,255,255],fontSize:8,fontStyle:'bold',cellPadding:3},
+      bodyStyles:{fontSize:8,cellPadding:2.5,textColor:[51,65,85]},alternateRowStyles:{fillColor:[240,253,244]},
+      columnStyles:{1:{halign:'right',fontStyle:'bold',textColor:[21,128,61]}}
+    });
+    y=doc.lastAutoTable.finalY+8;
+  }
+  if(!dayChs.length&&!dayPmts.length){
+    doc.setFontSize(10);doc.setFont('helvetica','normal');doc.setTextColor(148,163,184);doc.text('No transactions recorded on this date.',mg,y);
+  }
+  pdfFooter(doc, false);
+  doc.save('DailyBook-'+date+'.pdf');
+}
+
+function downloadLedgerPDF(clientId) {
+  if (!window.jspdf) { alert('PDF library not loaded.'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const W=210, mg=14;
+  const cl = APP.clients.find(c=>c.id===clientId);
+  if (!cl) return;
+  const bal = clientBalance(clientId);
+
+  pdfHeader(doc, 'Party Ledger  ·  ' + cl.name + '  ·  Generated: ' + fmtD(TODAY), false);
+
+  let y=43;
+  doc.setFillColor(248,250,252); doc.rect(mg,y,W-2*mg,18,'F');
+  doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(100,116,139);
+  doc.text('CLIENT',mg+3,y+6);doc.text('GST',mg+90,y+6);doc.text('PHONE',mg+150,y+6);
+  doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(15,23,42);
+  doc.text(cl.name,mg+3,y+14);doc.text(cl.gst||'—',mg+90,y+14);doc.text(cl.phone||'—',mg+150,y+14);
+  y+=24;
+
+  const events=[];
+  APP.challans.filter(c=>c.clientId===clientId&&c.mode==='credit').forEach(c=>{
+    events.push({date:c.date,type:'sale',amount:c.total,ref:c.billNo,desc:c.items.map(i=>i.name).join(', ')});
+  });
+  APP.payments.filter(p=>p.clientId===clientId).forEach(p=>{
+    events.push({date:p.date,type:'payment',amount:p.amount,ref:'PMT',desc:p.note||'Payment received',mode:p.mode});
+  });
+  events.sort((a,b)=>new Date(a.date)-new Date(b.date)||(a.type==='payment'?1:-1));
+
+  let running=0;
+  const rows=events.map(e=>{
+    if(e.type==='sale'){running+=e.amount;return[fmtD(e.date),e.ref+' — '+e.desc,fmtPdf(e.amount),'—',fmtPdf(Math.abs(running))+' '+(running>0?'Dr':'Cr')];}
+    else{running-=e.amount;return[fmtD(e.date),'Payment ('+e.mode.toUpperCase()+') — '+(e.desc||''),'—',fmtPdf(e.amount),running===0?'NIL':fmtPdf(Math.abs(running))+' '+(running>0?'Dr':'Cr')];}
+  });
+
+  doc.autoTable({startY:y,margin:{left:mg,right:mg},
+    head:[['Date','Particulars','Debit (Sales Rs.)','Credit (Payments Rs.)','Balance']],
+    body:rows,
+    headStyles:{fillColor:[15,23,42],textColor:[255,255,255],fontSize:8,fontStyle:'bold',cellPadding:3},
+    bodyStyles:{fontSize:8,cellPadding:2.5,textColor:[51,65,85]},
+    alternateRowStyles:{fillColor:[248,250,252]},
+    columnStyles:{2:{halign:'right',textColor:[185,28,28]},3:{halign:'right',textColor:[21,128,61]},4:{halign:'right',fontStyle:'bold'}}
+  });
+
+  y=doc.lastAutoTable.finalY+6;
+  const balColor=bal>0?[185,28,28]:bal<0?[21,128,61]:[100,116,139];
+  doc.setFillColor(15,23,42);doc.rect(W-mg-80,y,80,13,'F');
+  doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);
+  doc.text('CLOSING BALANCE',W-mg-77,y+8.5);
+  doc.setTextColor(...balColor);
+  doc.text(fmtPdf(Math.abs(bal))+' '+(bal>0?'Dr':bal<0?'Cr':'NIL'),W-mg-3,y+8.5,{align:'right'});
+
+  pdfFooter(doc, false);
+  doc.save('Ledger-'+cl.name.replace(/\s+/g,'-')+'-'+TODAY+'.pdf');
+}
+
+function renderWeeklyChart(){
+  const days=[],labels=[];
+  for(let i=6;i>=0;i--){const d=new Date(TODAY);d.setDate(d.getDate()-i);const s=d.toISOString().split('T')[0];days.push(s);labels.push(d.toLocaleDateString('en-IN',{weekday:'short',day:'numeric'}));}
+  const g=(t,d)=>cChallans().filter(c=>c.date===d&&c.mode===t).reduce((s,c)=>s+c.total,0);
+  mkChart('ch-weekly',{type:'bar',data:{labels,datasets:[
+    {label:'Cash',  data:days.map(d=>g('cash',d)), backgroundColor:'#4ade80',borderRadius:4},
+    {label:'UPI',   data:days.map(d=>g('upi',d)),  backgroundColor:'#a78bfa',borderRadius:4},
+    {label:'Credit',data:days.map(d=>g('credit',d)),backgroundColor:'#fb923c',borderRadius:4}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}},
+    scales:{x:{stacked:true,grid:{display:false},ticks:{font:{size:10}}},y:{stacked:true,grid:{color:'#f1f5f9'},ticks:{callback:v=>'₹'+(v>=1000?(v/1000).toFixed(0)+'k':v),font:{size:10}}}}}});
+}
+function renderMixChart(){
+  const m=cChallans().filter(c=>c.date.startsWith(TODAY.slice(0,7)));
+  const cash=m.filter(c=>c.mode==='cash').reduce((s,c)=>s+c.total,0);
+  const upi=m.filter(c=>c.mode==='upi').reduce((s,c)=>s+c.total,0);
+  const cred=m.filter(c=>c.mode==='credit').reduce((s,c)=>s+c.total,0);
+  const tot=cash+upi+cred;
+  mkChart('ch-mix',{type:'doughnut',data:{labels:['Cash','UPI','Credit'],datasets:[{data:[cash,upi,cred],backgroundColor:['#4ade80','#a78bfa','#fb923c'],borderWidth:0,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+fmt(ctx.raw)}}}}});
+  el('mix-leg').innerHTML=[{l:'Cash',v:cash,c:'#4ade80'},{l:'UPI',v:upi,c:'#a78bfa'},{l:'Credit',v:cred,c:'#fb923c'}]
+    .map(x=>'<div style="display:flex;align-items:center;justify-content:space-between;font-size:11px"><div style="display:flex;align-items:center;gap:5px"><div style="width:7px;height:7px;border-radius:50%;background:'+x.c+'"></div><span style="color:#64748b">'+x.l+'</span></div><span style="font-weight:700">'+fmt(x.v)+' <span style="color:#94a3b8;font-weight:400">('+(tot>0?((x.v/tot)*100).toFixed(0):0)+'%)</span></span></div>').join('');
+}
+function renderAgingBarChart(){
+  const b=agingBuckets(null);
+  mkChart('ch-age',{type:'bar',indexAxis:'y',data:{labels:['0–30d','31–60d','61–90d','90+d'],
+    datasets:[{data:[b.b0,b.b31,b.b61,b.b90],backgroundColor:['#4ade80','#fbbf24','#f87171','#7f1d1d'],borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+fmt(ctx.raw)}}},
+      scales:{x:{grid:{color:'#f1f5f9'},ticks:{callback:v=>'₹'+(v>=1000?(v/1000).toFixed(0)+'k':v),font:{size:10}}},y:{grid:{display:false},ticks:{font:{size:12}}}}}});
+}
+
+// ═══════════════════════════════════════════════
+//  CHALLANS
+// ═══════════════════════════════════════════════
+function challanTR(c, actions=false) {
+  const pa=paidAmt(c), os=outstanding(c), st=challanStatus(c), d=daysOld(c.date);
+  const items = c.items.map(i=>i.name+' ('+i.qty+(i.unit==='piece'?'pcs':'m')+')').join(', ');
+  let actionsHTML = '';
+  if(actions){
+    actionsHTML = '<td><div style="display:flex;gap:5px;flex-wrap:wrap">'+
+      '<button class="btn btn-sm" style="background:#0369a1;color:#fff" title="View / Print Delivery Challan" onclick="printDeliveryChallan(\''+c.id+'\')"><i class="fas fa-eye"></i></button>'+
+      '<button class="btn btn-ghost btn-sm" onclick="openChallanModal(\''+c.id+'\')"><i class="fas fa-edit"></i></button>'+
+      '<button class="btn btn-danger btn-sm" onclick="confirmDelete(\'challan\',\''+c.id+'\')"><i class="fas fa-trash"></i></button>'+
+      '<button class="btn btn-sm" style="background:#dc5800;color:#fff" title="Download PDF" onclick="downloadChallanPDF(\''+c.id+'\')"><i class="fas fa-file-pdf"></i></button>'+
+    '</div></td>';
+  }
+  return '<tr>'+
+    '<td><strong style="color:#1d4ed8">'+c.billNo+'</strong></td>'+
+    '<td>'+fmtD(c.date)+'</td>'+
+    '<td><div style="font-weight:600">'+clientName(c.clientId)+'</div></td>'+
+    '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+items+'">'+items+'</td>'+
+    '<td><strong>'+fmt(c.total)+'</strong></td>'+
+    '<td style="color:#15803d">'+fmt(pa)+'</td>'+
+    '<td style="font-weight:700;color:'+(os>0?'#b91c1c':'#15803d')+'">'+fmt(os)+'</td>'+
+    '<td><span class="badge badge-'+c.mode+'">'+c.mode.toUpperCase()+'</span></td>'+
+    '<td style="color:'+(d>60?'#dc2626':d>30?'#d97706':'#334155')+';font-weight:600">'+d+'d</td>'+
+    '<td><span class="badge badge-'+st+'">'+st[0].toUpperCase()+st.slice(1)+'</span></td>'+
+    actionsHTML+
+  '</tr>';
+}
+
+function renderClientBalanceCards() {
+  const cards = cClients().map(cl => {
+    const allCredit = cChallans().filter(c => c.clientId === cl.id && c.mode === 'credit').reduce((s,c)=>s+c.total,0);
+    if (!allCredit) return '';
+    const bal = clientBalance(cl.id);
+    const os  = Math.max(0, bal);
+    const adv = Math.max(0, -bal);
+    const pct = allCredit > 0 ? Math.min(100, ((allCredit - os) / allCredit) * 100) : 100;
+    const shortName = cl.name.length > 22 ? cl.name.slice(0,20)+'…' : cl.name;
+    return '<div class="card" style="padding:14px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px">'+
+        '<div style="font-size:12px;font-weight:700;color:#0f172a">'+shortName+'</div>'+
+        (adv > 0 ? '<span class="badge badge-paid" style="font-size:10px">ADV ✓</span>' : '')+
+      '</div>'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:6px">'+
+        '<div><div style="font-size:10px;color:#94a3b8">Credit Sales</div><div style="font-size:13px;font-weight:700">'+fmt(allCredit)+'</div></div>'+
+        '<div style="text-align:right"><div style="font-size:10px;color:'+(os>0?'#b91c1c':'#15803d')+'">'+(adv>0?'Advance':'Outstanding')+'</div>'+
+          '<div style="font-size:13px;font-weight:800;color:'+(adv>0?'#15803d':os>0?'#b91c1c':'#15803d')+'">'+(adv>0?fmt(adv):fmt(os))+'</div></div>'+
+      '</div>'+
+      (os > 0 ? '<div style="margin-bottom:8px"><div class="prog-bar"><div class="prog-fill" style="width:'+pct+'%;background:'+(pct<50?'#ef4444':pct<80?'#f59e0b':'#22c55e')+'"></div></div></div>' : '')+
+      '<button class="btn btn-success btn-sm" style="width:100%;font-size:11px;margin-top:2px" onclick="openPaymentModal('+cl.id+')">'+
+        '<i class="fas fa-rupee-sign" style="margin-right:4px"></i>'+(adv>0?'View Ledger / Pay Again':'Record Payment')+
+      '</button></div>';
+  }).filter(Boolean).join('');
+  const c = el('client-bal-cards');
+  if (c) c.innerHTML = cards || '<div style="color:#94a3b8;font-size:13px;padding:8px">No credit clients yet.</div>';
+}
+
+function renderChallans() {
+  renderClientBalanceCards();
+  buildMonthOptions('fc-mn', true);
+  const q   = (el('fc-q').value||'').toLowerCase();
+  const cl  = el('fc-cl').value;
+  const st  = el('fc-st').value;
+  const mo  = el('fc-mo').value;
+  const mn  = el('fc-mn').value;
+  let list  = [...cChallans()].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(q)  list=list.filter(c=>c.billNo.toLowerCase().includes(q)||clientName(c.clientId).toLowerCase().includes(q)||c.items.some(i=>i.name.toLowerCase().includes(q)));
+  if(cl) list=list.filter(c=>c.clientId==cl);
+  if(st) list=list.filter(c=>challanStatus(c)===st);
+  if(mo) list=list.filter(c=>c.mode===mo);
+  if(mn) list=list.filter(c=>c.date.startsWith(mn));
+  el('fc-tot').textContent = list.length;
+  el('fc-pa').textContent  = list.filter(c=>challanStatus(c)==='paid').length;
+  el('fc-pl').textContent  = list.filter(c=>challanStatus(c)==='partial').length;
+  el('fc-pn').textContent  = list.filter(c=>challanStatus(c)==='pending').length;
+  const tb=el('t-challans'), cards=el('challan-cards'), em=el('ch-empty');
+  if(!list.length){tb.innerHTML='';if(cards)cards.innerHTML='';em.style.display='block';return;}
+  em.style.display='none';
+  tb.innerHTML=list.map(c=>challanTR(c,true)).join('');
+  if(cards) cards.innerHTML=list.map(c=>{
+    const os=outstanding(c), st=challanStatus(c);
+    return '<div class="data-card"><div class="data-card-head"><div><div style="font-weight:700">'+c.billNo+'</div><div style="font-size:11px;color:#64748b">'+fmtD(c.date)+' · '+clientName(c.clientId)+'</div></div><span class="badge badge-'+st+'">'+st+'</span></div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px"><div><span style="color:#94a3b8;font-size:10px">Total</span><div style="font-weight:700">'+fmt(c.total)+'</div></div>'+
+      '<div><span style="color:#94a3b8;font-size:10px">Outstanding</span><div style="font-weight:700;color:'+(os>0?'#b91c1c':'#15803d')+'">'+fmt(os)+'</div></div></div>'+
+      '<div class="data-card-actions"><button class="btn btn-ghost btn-sm" onclick="openChallanModal('+c.id+')"><i class="fas fa-edit"></i></button>'+
+      '<button class="btn btn-ghost btn-sm" onclick="printChallan('+c.id+')"><i class="fas fa-print"></i></button></div></div>';
+  }).join('');
+}
+function resetCF(){['fc-q','fc-cl','fc-st','fc-mo','fc-mn'].forEach(id=>{const e=el(id);e.value='';});renderChallans();}
+
+// ═══════════════════════════════════════════════
+//  CLIENTS
+// ═══════════════════════════════════════════════
+function renderClients() {
+  const q  = (el('cl-q').value||'').toLowerCase();
+  const rf = el('cl-risk')?.value || '';
+  let list = cClients();
+  if(q)  list = list.filter(c=>c.name.toLowerCase().includes(q)||c.phone.includes(q));
+  if(rf) list = list.filter(c=>{ const s=clientStats(c.id); return riskLevel(s.oldest,s.os).label===rf; });
+
+  el('client-cards').innerHTML = cClients().map(cl=>{
+    const s=clientStats(cl.id); const r=riskLevel(s.oldest,s.os);
+    const allCredit = cChallans().filter(c=>c.clientId===cl.id&&c.mode==='credit').reduce((s,c)=>s+c.total,0);
+    const pct = allCredit>0?Math.min(100,((allCredit-s.os)/allCredit)*100):100;
+    return '<div class="card">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">'+
+        '<div><div style="font-weight:700;font-size:13px">'+cl.name+'</div><div style="font-size:11px;color:#94a3b8">'+cl.phone+'</div></div>'+
+        '<span class="badge '+r.cls+'">'+r.label+'</span>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'+
+        '<div><div style="font-size:10px;color:#94a3b8">Total Sales</div><div style="font-size:14px;font-weight:800">'+fmt(s.totalSales)+'</div></div>'+
+        '<div><div style="font-size:10px;color:'+(s.advance>0?'#15803d':'#b91c1c')+'">'+(s.advance>0?'Advance Balance':'Outstanding')+'</div>'+
+          '<div style="font-size:14px;font-weight:800;color:'+(s.advance>0?'#15803d':s.os>0?'#b91c1c':'#15803d')+'">'+(s.advance>0?fmt(s.advance):fmt(s.os))+'</div></div>'+
+      '</div>'+
+      (s.os>0?'<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span style="color:#64748b">Recovery</span><span style="color:#64748b">'+pct.toFixed(0)+'%</span></div><div class="prog-bar"><div class="prog-fill" style="width:'+pct+'%;background:'+(pct<50?'#ef4444':pct<80?'#f59e0b':'#22c55e')+'"></div></div></div>':'')+
+      '<button class="btn btn-ghost btn-sm" style="width:100%;font-size:11px" onclick="openCustomerDetail('+cl.id+',\'customers\')"><i class="fas fa-user" style="margin-right:4px"></i>View Details</button></div>';
+  }).join('');
+
+  el('t-clients').innerHTML = list.map(cl=>{
+    const s=clientStats(cl.id); const r=riskLevel(s.oldest,s.os);
+    const laD=cl.lastAsked?daysOld(cl.lastAsked):null;
+    return '<tr>'+
+      '<td><div style="font-weight:700">'+cl.name+'</div><div style="font-size:10px;color:#94a3b8">'+cl.gst+' · '+cl.address+'</div></td>'+
+      '<td>'+cl.phone+'</td>'+
+      '<td><strong>'+fmt(s.totalSales)+'</strong></td>'+
+      '<td style="color:#15803d">'+fmt(s.totalPaid)+'</td>'+
+      '<td style="font-weight:800;color:'+(s.os>0?'#b91c1c':'#15803d')+'">'+fmt(s.os)+'</td>'+
+      '<td>'+fmtD(s.lastCh?.date)+'</td>'+
+      '<td style="font-weight:700;color:'+(s.oldest>60?'#dc2626':s.oldest>30?'#d97706':'#334155')+'">'+(s.oldest>0?s.oldest+'d':'—')+'</td>'+
+      '<td>'+(laD!==null?'<span style="color:'+(laD>14?'#b91c1c':'#64748b')+'">'+laD+'d ago ('+fmtD(cl.lastAsked)+')</span>':'<span style="color:#b91c1c;font-weight:700">Never asked!</span>')+'</td>'+
+      '<td><span class="badge '+r.cls+'">'+r.label+'</span></td>'+
+      '<td><div style="display:flex;gap:5px;flex-wrap:wrap">'+
+        '<button class="btn btn-ghost btn-sm" onclick="openCustomerDetail('+cl.id+',\'customers\')" title="Party Details"><i class="fas fa-user"></i></button>'+
+        '<button class="btn btn-success btn-sm" onclick="openPaymentModal('+cl.id+')" title="Record Payment"><i class="fas fa-rupee-sign"></i></button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="markAskedToday('+cl.id+')" title="Mark Asked Today"><i class="fas fa-phone"></i></button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="openClientModal('+cl.id+')"><i class="fas fa-edit"></i></button>'+
+        '<button class="btn btn-danger btn-sm" onclick="confirmDelete(\'client\','+cl.id+')"><i class="fas fa-trash"></i></button>'+
+      '</div></td></tr>';
+  }).join('');
+}
+function renderCustomers(){ renderClients(); }
+
+// ═══════════════════════════════════════════════
+//  PRODUCTS
+// ═══════════════════════════════════════════════
+function renderProducts() {
+  el('t-products').innerHTML = cProducts().map((p,i)=>'<tr>'+
+    '<td style="color:#94a3b8;font-weight:600">'+(i+1)+'</td>'+
+    '<td><strong>'+p.name+'</strong></td>'+
+    '<td style="color:#64748b">'+p.desc+'</td>'+
+    '<td>'+p.size+' / '+p.unit+'</td>'+
+    '<td><strong>'+fmt(p.price)+'</strong> / '+p.unit+'</td>'+
+    '<td><div style="display:flex;gap:5px">'+
+      '<button class="btn btn-ghost btn-sm" onclick="openProductModal('+p.id+')"><i class="fas fa-edit"></i></button>'+
+      '<button class="btn btn-danger btn-sm" onclick="confirmDelete(\'product\','+p.id+')"><i class="fas fa-trash"></i></button>'+
+    '</div></td></tr>').join('');
+}
+
+// ═══════════════════════════════════════════════
+//  COMPANY
+// ═══════════════════════════════════════════════
+function renderCompany() { renderCompanies(); }
+
+// ═══════════════════════════════════════════════
+//  MONTHLY REPORT
+// ═══════════════════════════════════════════════
+function renderMonthly() {
+  buildMonthOptions('r-mn', false);
+  const cId = el('r-cl').value;
+  const mn  = el('r-mn').value;
+  let list  = cChallans().filter(c=>c.date.startsWith(mn));
+  if(cId) list=list.filter(c=>c.clientId==cId);
+  list.sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+  const tS=list.reduce((s,c)=>s+c.total,0);
+  const tP=list.reduce((s,c)=>s+paidAmt(c),0);
+  const tO=list.reduce((s,c)=>s+outstanding(c),0);
+  const tCash=list.filter(c=>c.mode==='cash').reduce((s,c)=>s+c.total,0);
+  const tUPI=list.filter(c=>c.mode==='upi').reduce((s,c)=>s+c.total,0);
+  const tCred=list.filter(c=>c.mode==='credit').reduce((s,c)=>s+c.total,0);
+  const bName=cId?clientName(parseInt(cId)):'All Clients';
+  const mLabel=new Date(mn+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+
+  el('r-title').textContent=mLabel+' — '+bName;
+  el('r-cnt').textContent=list.length+' challans';
+  el('r-ph-co').textContent=getActiveCompany().name;
+  el('r-ph-sub').textContent='Monthly Report · '+mLabel+' · '+bName;
+
+  el('r-stats').innerHTML=
+    '<div class="card" style="padding:13px"><div class="stat-label">Total Sales</div><div style="font-size:20px;font-weight:800">'+fmt(tS)+'</div><div class="stat-hint">'+list.length+' challans</div></div>'+
+    '<div class="card" style="padding:13px"><div class="stat-label" style="color:#15803d">Collected</div><div style="font-size:20px;font-weight:800;color:#15803d">'+fmt(tP)+'</div><div class="stat-hint">Cash: '+fmt(tCash)+' · UPI: '+fmt(tUPI)+'</div></div>'+
+    '<div class="card" style="padding:13px"><div class="stat-label" style="color:#b91c1c">Outstanding</div><div style="font-size:20px;font-weight:800;color:'+(tO>0?'#b91c1c':'#15803d')+'">'+fmt(tO)+'</div><div class="stat-hint">From credit</div></div>'+
+    '<div class="card" style="padding:13px"><div class="stat-label" style="color:#92400e">Credit Sales</div><div style="font-size:20px;font-weight:800;color:#92400e">'+fmt(tCred)+'</div><div class="stat-hint">'+list.filter(c=>c.mode==='credit').length+' challans</div></div>';
+
+  let monthPmts = cPayments().filter(p => p.date.startsWith(mn));
+  if (cId) monthPmts = monthPmts.filter(p => p.clientId == cId);
+  monthPmts.sort((a,b) => new Date(a.date)-new Date(b.date));
+  const totalPmtRcvd = monthPmts.reduce((s,p)=>s+p.amount,0);
+
+  const payBtn = el('r-pay-btn');
+  if (payBtn) payBtn.style.display = cId ? '' : 'none';
+
+  el('r-payments-section').innerHTML = monthPmts.length ?
+    '<div class="card no-print"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-weight:700;font-size:13px;color:#0f172a"><i class="fas fa-hand-holding-usd" style="color:#15803d;margin-right:6px"></i>Payments Received — '+mLabel+'</div><div style="font-size:14px;font-weight:800;color:#15803d">'+fmt(totalPmtRcvd)+'</div></div><div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Client</th><th>Amount</th><th>Mode</th><th>Note</th></tr></thead><tbody>'+monthPmts.map(function(p){return '<tr><td>'+fmtD(p.date)+'</td><td><strong>'+clientName(p.clientId)+'</strong></td><td style="font-weight:700;color:#15803d">'+fmt(p.amount)+'</td><td><span class="badge badge-'+p.mode+'">'+p.mode.toUpperCase()+'</span></td><td style="color:#64748b;font-size:12px">'+(p.note||'—')+'</td></tr>';}).join('')+'</tbody></table></div></div>' : '';
+
+  el('t-report').innerHTML=list.map(function(c){
+    const pa=paidAmt(c),os=outstanding(c),st=challanStatus(c);
+    const items=c.items.map(function(i){return i.name+'('+i.qty+(i.unit==='piece'?'pcs':'m')+')';}).join(', ');
+    return '<tr><td>'+fmtD(c.date)+'</td><td><strong style="color:#1d4ed8;cursor:pointer" onclick="openChallanView(\''+c.id+'\')">'+c.billNo+'</strong></td><td>'+clientName(c.clientId)+'</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+items+'</td><td><strong>'+fmt(c.total)+'</strong></td><td style="color:#15803d">'+fmt(pa)+'</td><td style="font-weight:700;color:'+(os>0?'#b91c1c':'#15803d')+'">'+fmt(os)+'</td><td><span class="badge badge-'+c.mode+'">'+c.mode.toUpperCase()+'</span></td><td><span class="badge badge-'+st+'">'+st[0].toUpperCase()+st.slice(1)+'</span></td><td class="no-print"><div style="display:flex;gap:4px"><button class="btn btn-ghost btn-sm" onclick="openChallanView(\''+c.id+'\')" title="View Bill"><i class="fas fa-eye"></i></button>'+(c.mode==='credit'?'<button class="btn btn-success btn-sm" onclick="openPaymentModal('+c.clientId+')" title="Record Payment"><i class="fas fa-rupee-sign"></i></button>':'')+'</div></td></tr>';
+  }).join('');
+
+  el('t-report-foot').innerHTML='<tr style="background:#f8fafc;font-weight:800"><td colspan="4" style="padding:10px 13px;border-top:2px solid #e2e8f0;text-align:right;font-size:11px;color:#475569">TOTAL</td><td style="padding:10px 13px;border-top:2px solid #e2e8f0">'+fmt(tS)+'</td><td style="padding:10px 13px;border-top:2px solid #e2e8f0;color:#15803d">'+fmt(tP)+'</td><td style="padding:10px 13px;border-top:2px solid #e2e8f0;color:'+(tO>0?'#b91c1c':'#15803d')+'">'+fmt(tO)+'</td><td colspan="3" style="border-top:2px solid #e2e8f0"></td></tr>';
+
+  renderTrendChart();
+}
+function renderTrendChart(){
+  const months=(function(){var r=[];for(var i=2;i>=0;i--){var d=new Date(TODAY);d.setMonth(d.getMonth()-i);r.push(d.toISOString().slice(0,7));}return r;})();
+  const labels=months.map(function(m){return new Date(m+'-01').toLocaleDateString('en-IN',{month:'short'});});
+  const g=function(t,m){return cChallans().filter(function(c){return c.date.startsWith(m)&&c.mode===t;}).reduce(function(s,c){return s+c.total;},0);};
+  mkChart('ch-trend',{type:'bar',data:{labels,datasets:[
+    {label:'Cash',  data:months.map(function(m){return g('cash',m);}), backgroundColor:'#4ade80',borderRadius:4},
+    {label:'UPI',   data:months.map(function(m){return g('upi',m);}),  backgroundColor:'#a78bfa',borderRadius:4},
+    {label:'Credit',data:months.map(function(m){return g('credit',m);}),backgroundColor:'#fb923c',borderRadius:4}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}},
+    scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:'#f1f5f9'},ticks:{callback:function(v){return '₹'+(v>=1000?(v/1000).toFixed(0)+'k':v);},font:{size:10}}}}}});
+}
+function viewClientReport(id){el('r-cl').value=id;nav('monthly');}
+function recordPaymentFromReport(){var cId=el('r-cl').value;if(cId)openPaymentModal(parseInt(cId));}
+function doPrint(){document.querySelectorAll('.print-head').forEach(function(e){e.style.display='block';});window.print();setTimeout(function(){document.querySelectorAll('.print-head').forEach(function(e){e.style.display='none';});},800);}
+
+// ═══════════════════════════════════════════════
+//  AGING
+// ═══════════════════════════════════════════════
+function renderAging(){
+  const b=agingBuckets(null);
+  el('a0').textContent=fmt(b.b0); el('a31').textContent=fmt(b.b31);
+  el('a61').textContent=fmt(b.b61); el('a90').textContent=fmt(b.b90);
+
+  el('t-aging').innerHTML=cClients().map(function(cl){
+    const s=clientStats(cl.id); const bk=agingBuckets(cl.id); const r=riskLevel(s.oldest,s.os);
+    const laD=cl.lastAsked?daysOld(cl.lastAsked):null;
+    if(s.os===0) return '<tr><td><strong>'+cl.name+'</strong></td><td colspan="4" style="color:#15803d;text-align:center;font-size:12px">✓ All cleared</td><td style="color:#15803d;font-weight:700">₹0</td><td>—</td><td>—</td><td><span class="badge badge-clear">Clear</span></td></tr>';
+    return '<tr>'+
+      '<td><div style="font-weight:700">'+cl.name+'</div><div style="font-size:10px;color:#94a3b8">'+cl.phone+'</div></td>'+
+      '<td style="font-weight:'+(bk.b0>0?700:400)+';color:'+(bk.b0>0?'#15803d':'#94a3b8')+'">'+(bk.b0>0?fmt(bk.b0):'—')+'</td>'+
+      '<td style="font-weight:'+(bk.b31>0?700:400)+';color:'+(bk.b31>0?'#d97706':'#94a3b8')+'">'+(bk.b31>0?fmt(bk.b31):'—')+'</td>'+
+      '<td style="font-weight:'+(bk.b61>0?700:400)+';color:'+(bk.b61>0?'#dc2626':'#94a3b8')+'">'+(bk.b61>0?fmt(bk.b61):'—')+'</td>'+
+      '<td style="font-weight:'+(bk.b90>0?800:400)+';color:'+(bk.b90>0?'#7f1d1d':'#94a3b8')+'">'+(bk.b90>0?fmt(bk.b90):'—')+'</td>'+
+      '<td style="font-weight:800;color:#b91c1c">'+fmt(s.os)+'</td>'+
+      '<td style="font-weight:700;color:'+(s.oldest>60?'#dc2626':s.oldest>30?'#d97706':'#334155')+'">'+s.oldest+'d</td>'+
+      '<td><div style="display:flex;align-items:center;gap:6px">'+(laD!==null?'<span style="color:'+(laD>14?'#b91c1c':'#64748b')+'">'+laD+'d ago</span>':'<span style="color:#b91c1c;font-weight:700">Never!</span>')+
+        '<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 7px" onclick="markAskedToday('+cl.id+')" title="Mark asked today"><i class="fas fa-phone"></i></button></div></td>'+
+      '<td><span class="badge '+r.cls+'">'+r.label+'</span></td></tr>';
+  }).join('');
+
+  const pending=[...cChallans()].filter(c=>outstanding(c)>0).sort((a,b)=>daysOld(b.date)-daysOld(a.date));
+  el('t-aging-ch').innerHTML=pending.map(function(c){
+    const os=outstanding(c),st=challanStatus(c),d=daysOld(c.date),cl=APP.clients.find(function(x){return x.id===c.clientId;});
+    const laD=cl?.lastAsked?daysOld(cl.lastAsked):null;
+    const dc=d>90?'#7f1d1d':d>60?'#b91c1c':d>30?'#d97706':'#334155';
+    return '<tr><td><strong style="color:#1d4ed8">'+c.billNo+'</strong></td><td>'+fmtD(c.date)+'</td>'+
+      '<td><strong>'+clientName(c.clientId)+'</strong></td><td>'+fmt(c.total)+'</td>'+
+      '<td style="font-weight:800;color:#b91c1c">'+fmt(os)+'</td>'+
+      '<td><span style="color:'+dc+';font-size:15px;font-weight:800">'+d+'</span><span style="color:#94a3b8;font-size:11px"> days</span></td>'+
+      '<td>'+(laD!==null?laD+'d ago':'<span style="color:#b91c1c;font-weight:700">Never</span>')+'</td>'+
+      '<td><span class="badge badge-'+st+'">'+st[0].toUpperCase()+st.slice(1)+'</span></td>'+
+      '<td><button class="btn btn-success btn-sm" onclick="openPaymentModal('+c.clientId+')"><i class="fas fa-rupee-sign" style="margin-right:4px"></i>Pay</button></td></tr>';
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  PAYMENTS
+// ═══════════════════════════════════════════════
+function renderPayments(){
+  const cIdFilter = el('p-cl-filter')?.value;
+  let all=[...cPayments()];
+  if(cIdFilter) all=all.filter(p=>p.clientId==cIdFilter);
+  all.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const allTot=[...cPayments()];
+  const tot=allTot.reduce((s,p)=>s+p.amount,0);
+  const curMonth=new Date(TODAY).toISOString().slice(0,7);
+  const mTot=allTot.filter(p=>p.date.startsWith(curMonth)).reduce((s,p)=>s+p.amount,0);
+  el('p-tot').textContent=fmt(tot); el('p-mn').textContent=fmt(mTot); el('p-cnt').textContent=allTot.length;
+  el('t-payments').innerHTML=all.map(function(p){
+    return '<tr><td>'+fmtD(p.date)+'</td>'+
+      '<td><strong style="cursor:pointer;color:#1d4ed8" onclick="openCustomerDetail('+p.clientId+',\'payments\')">'+clientName(p.clientId)+'</strong></td>'+
+      '<td style="font-weight:700;color:#15803d">'+fmt(p.amount)+'</td>'+
+      '<td><span class="badge badge-'+p.mode+'">'+p.mode.toUpperCase()+'</span></td>'+
+      '<td style="color:#64748b;font-size:12px">'+(p.note||'—')+'</td>'+
+      '<td><div style="display:flex;gap:4px">'+
+        '<button class="btn btn-ghost btn-sm" onclick="openEditPaymentModal(\''+p.id+'\')" title="Edit"><i class="fas fa-edit"></i></button>'+
+        '<button class="btn btn-danger btn-sm" onclick="deletePayment(\''+p.id+'\')" title="Delete"><i class="fas fa-trash"></i></button>'+
+      '</div></td></tr>';
+  }).join('');
+}
+function deletePayment(id){
+  el('modal-title').textContent='Delete Payment?';
+  el('modal-body').innerHTML='<div style="text-align:center;padding:10px 0"><i class="fas fa-trash-alt" style="font-size:36px;color:#ef4444;margin-bottom:12px;display:block"></i><div style="font-size:15px;font-weight:700;margin-bottom:6px">Delete this payment record?</div><div style="color:#64748b;font-size:13px">This will recalculate outstanding balances for the client.</div></div>';
+  el('modal-box').className='modal-box';
+  el('modal').classList.add('open');
+  el('modal-foot').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-danger" onclick="doDeletePayment(\''+id+'\')">Delete</button>';
+}
+function doDeletePayment(id){
+  APP.payments=APP.payments.filter(function(p){return p.id!==id;});
+  clearAllocCache(); saveStore(); closeModal();
+  el('modal-foot').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" id="modal-save" onclick="handleSave()">Save</button>';
+  toast('Payment deleted','t-del'); refreshAfterPayment();
+}
+
+function openEditPaymentModal(id) {
+  var p = APP.payments.find(function(x){return x.id===id;}); if(!p) return;
+  var clOpts = APP.clients.map(function(c){return '<option value="'+c.id+'" '+(c.id===p.clientId?'selected':'')+'>'+c.name+'</option>';}).join('');
+  var html =
+    '<div class="form-row"><label>Client</label><select class="inp" id="ep-client">'+clOpts+'</select></div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div class="form-row"><label>Amount *</label><input class="inp" id="ep-amt" type="number" value="'+p.amount+'" min="0.01" step="0.01"></div>'+
+      '<div class="form-row"><label>Date *</label><input class="inp" id="ep-date" type="date" value="'+p.date+'"></div>'+
+      '<div class="form-row"><label>Mode</label><select class="inp" id="ep-mode">'+
+        '<option value="cash" '+(p.mode==='cash'?'selected':'')+'>Cash</option>'+
+        '<option value="upi"  '+(p.mode==='upi'?'selected':'')+'>UPI</option>'+
+      '</select></div>'+
+      '<div class="form-row"><label>Note</label><input class="inp" id="ep-note" value="'+(p.note||'')+'" placeholder="Optional note"></div>'+
+    '</div>';
+  openModal('Edit Payment', html, function(){saveEditPayment(id);});
+}
+function saveEditPayment(id) {
+  var amt = parseFloat(el('ep-amt')?.value)||0;
+  if(!amt||amt<=0){alert('Enter a valid amount.');return;}
+  var idx = APP.payments.findIndex(function(p){return p.id===id;});
+  if(idx<0) return;
+  var origCompanyId = APP.payments[idx].companyId || APP.activeCompanyId;
+  APP.payments[idx] = {id:id, companyId:origCompanyId, clientId:parseInt(el('ep-client').value), amount:amt, date:el('ep-date').value, mode:el('ep-mode').value, note:el('ep-note').value};
+  clearAllocCache(); saveStore(); closeModal();
+  toast('Payment updated'); refreshAfterPayment();
+}
+
+// ═══════════════════════════════════════════════
+//  MODAL SYSTEM
+// ═══════════════════════════════════════════════
+let modalSaveHandler = null;
+function openModal(title, bodyHTML, saveHandler, wide){
+  el('modal-title').textContent=title;
+  el('modal-body').innerHTML=bodyHTML;
+  el('modal-box').className='modal-box'+(wide?' wide':'');
+  modalSaveHandler=saveHandler;
+  el('modal').classList.add('open');
+  const sf=el('modal-foot').querySelector('#modal-save');
+  if(sf) sf.style.display=saveHandler?'':'none';
+}
+function closeModal(){ el('modal').classList.remove('open'); modalSaveHandler=null; }
+function handleSave(){ if(modalSaveHandler) modalSaveHandler(); }
+
+// ═══ CHALLAN MODAL ═══
+function openChallanModal(id){
+  var ch = id ? APP.challans.find(function(c){return c.id===id;}) : null;
+  var bill = ch ? ch.billNo : nextBillNo();
+  var clOpts = APP.clients.map(function(c){return '<option value="'+c.id+'" '+(ch&&ch.clientId===c.id?'selected':'')+'>'+c.name+'</option>';}).join('');
+
+  var rowHTML = function(item) {
+    item = item || {};
+    var rowId='r'+Date.now()+Math.random().toString(36).substr(2,4);
+    return '<div class="prow" id="'+rowId+'">'+
+      '<select class="inp prod-sel" onchange="onProdSel(this,\''+rowId+'\')" style="font-size:12px">'+
+        '<option value="">— Select Product —</option>'+
+        cProducts().map(function(p){return '<option value="'+p.id+'" '+(item.pid===p.id?'selected':'')+'>'+p.name+' ('+p.size+')</option>';}).join('')+
+      '</select>'+
+      '<input class="inp size-f" value="'+(item.size||'')+'" placeholder="Size" readonly style="font-size:12px">'+
+      '<input class="inp price-f" type="number" value="'+(item.price||'')+'" placeholder="Rate" oninput="calcRow(\''+rowId+'\')" style="font-size:12px">'+
+      '<input class="inp qty-f" type="number" value="'+(item.qty||'')+'" placeholder="Qty" step="0.01" oninput="calcRow(\''+rowId+'\')" style="font-size:12px">'+
+      '<input class="inp total-f" value="'+(item.lt?fmt(item.lt):'')+'" readonly style="font-size:12px;background:#f8fafc">'+
+      '<button onclick="document.getElementById(\''+rowId+'\').remove();calcGrandTotal()" style="background:#fee2e2;color:#b91c1c;border:none;border-radius:6px;cursor:pointer;padding:6px 9px">×</button>'+
+    '</div>';
+  };
+
+  var existingRows = ch ? ch.items.map(function(it){return rowHTML(it);}).join('') : rowHTML();
+
+  var html=
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div class="form-row"><label>Bill No</label><input class="inp" id="ch-bill" value="'+bill+'" readonly style="background:#f8fafc"></div>'+
+      '<div class="form-row"><label>Date</label><input class="inp" id="ch-date" type="date" value="'+(ch?ch.date:TODAY)+'"></div>'+
+      '<div class="form-row" style="grid-column:1/-1"><label>Client</label><select class="inp" id="ch-client">'+clOpts+'</select></div>'+
+      '<div class="form-row"><label>Vehicle No</label><input class="inp" id="ch-veh" value="'+(ch?ch.vehicleNo:'')+'" placeholder="GJ-05-AB-1234"></div>'+
+      '<div class="form-row"><label>Receiver Name</label><input class="inp" id="ch-recv" value="'+(ch?ch.receiver:'')+'" placeholder="Name"></div>'+
+      '<div class="form-row"><label>Payment Mode</label><select class="inp" id="ch-mode">'+
+        '<option value="cash"   '+((!ch||ch.mode==='cash')?'selected':'')+'>Cash</option>'+
+        '<option value="upi"    '+(ch&&ch.mode==='upi'?'selected':'')+'>UPI</option>'+
+        '<option value="credit" '+(ch&&ch.mode==='credit'?'selected':'')+'>Credit</option>'+
+      '</select></div>'+
+      '<div class="form-row"><label>Notes</label><input class="inp" id="ch-notes" value="'+(ch?ch.notes:'')+'" placeholder="Optional note"></div>'+
+    '</div>'+
+    '<div style="margin:14px 0 8px;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em">Products / Items</div>'+
+    '<div style="display:grid;grid-template-columns:2fr 90px 90px 90px 100px 34px;gap:7px;margin-bottom:6px">'+
+      '<div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase">Product</div>'+
+      '<div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase">Size</div>'+
+      '<div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase">Rate</div>'+
+      '<div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase">Qty</div>'+
+      '<div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase">Total</div>'+
+      '<div></div>'+
+    '</div>'+
+    '<div id="prod-rows">'+existingRows+'</div>'+
+    '<button onclick="addProdRow()" class="btn btn-ghost" style="font-size:12px;padding:6px 12px;margin-top:4px"><i class="fas fa-plus" style="margin-right:4px"></i>Add Row</button>'+
+    '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;align-items:center;gap:12px">'+
+      '<div style="font-size:12px;color:#64748b">Grand Total</div>'+
+      '<div id="grand-total" style="font-size:20px;font-weight:800;color:#0f172a">₹0</div>'+
+    '</div>';
+
+  openModal(ch?'Edit Challan — '+ch.billNo:'New Challan', html, function(){saveChallan(id);}, true);
+  setTimeout(calcGrandTotal, 50);
+}
+
+function addProdRow(){
+  var rowId='r'+Date.now()+Math.random().toString(36).substr(2,4);
+  el('prod-rows').insertAdjacentHTML('beforeend','<div class="prow" id="'+rowId+'">'+
+    '<select class="inp prod-sel" onchange="onProdSel(this,\''+rowId+'\')" style="font-size:12px">'+
+      '<option value="">— Select Product —</option>'+
+      cProducts().map(function(p){return '<option value="'+p.id+'">'+p.name+' ('+p.size+')</option>';}).join('')+
+    '</select>'+
+    '<input class="inp size-f" placeholder="Size" readonly style="font-size:12px">'+
+    '<input class="inp price-f" type="number" placeholder="Rate" oninput="calcRow(\''+rowId+'\')" style="font-size:12px">'+
+    '<input class="inp qty-f" type="number" placeholder="Qty" step="0.01" oninput="calcRow(\''+rowId+'\')" style="font-size:12px">'+
+    '<input class="inp total-f" readonly style="font-size:12px;background:#f8fafc">'+
+    '<button onclick="document.getElementById(\''+rowId+'\').remove();calcGrandTotal()" style="background:#fee2e2;color:#b91c1c;border:none;border-radius:6px;cursor:pointer;padding:6px 9px">×</button>'+
+  '</div>');
+}
+function onProdSel(sel,rowId){
+  var p=APP.products.find(function(x){return x.id===parseInt(sel.value);});
+  if(!p) return;
+  var row=el(rowId);
+  row.querySelector('.size-f').value=p.size;
+  row.querySelector('.price-f').value=p.price;
+  calcRow(rowId);
+}
+function calcRow(rowId){
+  var row=el(rowId);
+  var price=parseFloat(row.querySelector('.price-f').value)||0;
+  var qty=parseFloat(row.querySelector('.qty-f').value)||0;
+  var tot=price*qty;
+  row.querySelector('.total-f').value=tot>0?fmt(tot):'';
+  calcGrandTotal();
+}
+function calcGrandTotal(){
+  var tot=0;
+  document.querySelectorAll('#prod-rows .prow').forEach(function(row){
+    var price=parseFloat(row.querySelector('.price-f').value)||0;
+    var qty=parseFloat(row.querySelector('.qty-f').value)||0;
+    tot+=price*qty;
+  });
+  var ge=el('grand-total'); if(ge) ge.textContent=fmt(tot);
+}
+
+function saveChallan(existingId){
+  var rows=[...document.querySelectorAll('#prod-rows .prow')];
+  var items=[];
+  for(var i=0;i<rows.length;i++){
+    var row=rows[i];
+    var pid=parseInt(row.querySelector('.prod-sel').value)||0;
+    var price=parseFloat(row.querySelector('.price-f').value)||0;
+    var qty=parseFloat(row.querySelector('.qty-f').value)||0;
+    if(!pid||!qty) continue;
+    var p=APP.products.find(function(x){return x.id===pid;});
+    items.push({pid:pid,name:p.name,size:row.querySelector('.size-f').value,price:price,qty:qty,unit:p.unit,lt:price*qty});
+  }
+  if(!items.length){alert('Add at least one product row with qty.');return;}
+  var clId=parseInt(el('ch-client').value);
+  if(!clId){alert('Select a client.');return;}
+  var total=items.reduce(function(s,it){return s+it.lt;},0);
+  var ch={
+    id: existingId||uid(),
+    companyId: APP.activeCompanyId,
+    billNo:el('ch-bill').value,
+    date:el('ch-date').value,
+    clientId:clId,
+    mode:el('ch-mode').value,
+    items:items, total:total,
+    vehicleNo:el('ch-veh').value,
+    receiver:el('ch-recv').value,
+    notes:el('ch-notes').value
+  };
+  if(existingId){ var idx=APP.challans.findIndex(function(c){return c.id===existingId;}); APP.challans[idx]=ch; }
+  else APP.challans.unshift(ch);
+  clearAllocCache(); saveStore(); closeModal(); renderChallans(); renderDashboard();
+  toast(existingId ? 'Challan updated' : 'Challan saved');
+}
+
+// ═══ CLIENT MODAL ═══
+function openClientModal(id){
+  var cl=id?APP.clients.find(function(c){return c.id===id;}):null;
+  var html=
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div class="form-row" style="grid-column:1/-1"><label>Client / Business Name *</label><input class="inp" id="cl-name" value="'+(cl?cl.name:'')+'" placeholder="e.g. Rajesh Kumar Textiles"></div>'+
+      '<div class="form-row" style="grid-column:1/-1"><label>Address</label><input class="inp" id="cl-addr" value="'+(cl?cl.address:'')+'" placeholder="Full address"></div>'+
+      '<div class="form-row"><label>Phone *</label><input class="inp" id="cl-phone" value="'+(cl?cl.phone:'')+'" placeholder="98765 43210"></div>'+
+      '<div class="form-row"><label>Email</label><input class="inp" id="cl-email" type="email" value="'+(cl?cl.email:'')+'" placeholder="email@example.com"></div>'+
+      '<div class="form-row"><label>GST No</label><input class="inp" id="cl-gst" value="'+(cl?cl.gst:'')+'" placeholder="24AABCC1234F1Z5"></div>'+
+      '<div class="form-row"><label>Last Asked for Payment</label><input class="inp" id="cl-asked" type="date" value="'+(cl&&cl.lastAsked?cl.lastAsked:'')+'"></div>'+
+    '</div>';
+  openModal(cl?'Edit — '+cl.name:'Add New Client', html, function(){saveClient(id);});
+}
+function saveClient(existingId){
+  var name=el('cl-name').value.trim();
+  var phone=el('cl-phone').value.trim();
+  if(!name||!phone){alert('Name and Phone are required.');return;}
+  var obj={
+    id: existingId||(APP.clients.length?Math.max.apply(null,APP.clients.map(function(c){return c.id;}))+1:1),
+    companyId: APP.activeCompanyId,
+    name:name, phone:phone,
+    address:el('cl-addr').value.trim(),
+    email:el('cl-email').value.trim(),
+    gst:el('cl-gst').value.trim(),
+    lastAsked:el('cl-asked').value||null
+  };
+  if(existingId){var idx=APP.clients.findIndex(function(c){return c.id===existingId;});APP.clients[idx]=obj;}
+  else APP.clients.push(obj);
+  saveStore(); closeModal(); renderClients(); populateClientSelects();
+  toast(existingId ? 'Client updated' : 'Client added');
+}
+
+// ═══ PRODUCT MODAL ═══
+function openProductModal(id){
+  var p=id?APP.products.find(function(x){return x.id===id;}):null;
+  var html=
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div class="form-row" style="grid-column:1/-1"><label>Product Name *</label><input class="inp" id="pr-name" value="'+(p?p.name:'')+'" placeholder="e.g. Cotton Fabric"></div>'+
+      '<div class="form-row" style="grid-column:1/-1"><label>Description</label><input class="inp" id="pr-desc" value="'+(p?p.desc:'')+'" placeholder="Short description"></div>'+
+      '<div class="form-row"><label>Size / Specification</label><input class="inp" id="pr-size" value="'+(p?p.size:'')+'" placeholder="e.g. 44" or M/L"></div>'+
+      '<div class="form-row"><label>Unit</label><select class="inp" id="pr-unit">'+
+        '<option value="meter" '+(!p||p.unit==='meter'?'selected':'')+'>meter</option>'+
+        '<option value="kg"    '+(p&&p.unit==='kg'?'selected':'')+'>kg</option>'+
+        '<option value="piece" '+(p&&p.unit==='piece'?'selected':'')+'>piece</option>'+
+      '</select></div>'+
+      '<div class="form-row"><label>Rate per Unit (₹) *</label><input class="inp" id="pr-price" type="number" value="'+(p?p.price:'')+'" placeholder="250"></div>'+
+    '</div>';
+  openModal(p?'Edit — '+p.name:'Add New Product', html, function(){saveProduct(id);});
+}
+function saveProduct(existingId){
+  var name=el('pr-name').value.trim();
+  var price=parseFloat(el('pr-price').value)||0;
+  if(!name||!price){alert('Name and Rate are required.');return;}
+  var obj={
+    id:existingId||(APP.products.length?Math.max.apply(null,APP.products.map(function(p){return p.id;}))+1:1),
+    companyId: APP.activeCompanyId,
+    name:name,desc:el('pr-desc').value.trim(),size:el('pr-size').value.trim(),
+    unit:el('pr-unit').value,price:price
+  };
+  if(existingId){var idx=APP.products.findIndex(function(p){return p.id===existingId;});APP.products[idx]=obj;}
+  else APP.products.push(obj);
+  saveStore(); closeModal(); renderProducts();
+  toast(existingId ? 'Product updated' : 'Product saved');
+}
+
+// ═══ COMPANY MODAL ═══
+function openCompanyModal(){ openEditCompanyModal(APP.activeCompanyId); }
+function saveCompany(){ saveCompanyEdit(APP.activeCompanyId); }
+
+// ═══ PAYMENT MODAL ═══
+function openPaymentModal(clientId){
+  var cl=APP.clients.find(function(c){return c.id===clientId;});
+  if(!cl) return;
+  var bal=clientBalance(clientId);
+  var os=Math.max(0,bal);
+  var adv=Math.max(0,-bal);
+  var alloc=getClientAlloc(clientId);
+  var creditChs=APP.challans.filter(function(c){return c.clientId===clientId&&c.mode==='credit';}).sort(function(a,b){return new Date(a.date)-new Date(b.date);});
+  var totalCreditSales=creditChs.reduce(function(s,c){return s+c.total;},0);
+  var totalPaidSoFar=APP.payments.filter(function(p){return p.clientId===clientId;}).reduce(function(s,p){return s+p.amount;},0);
+
+  var challanRows=creditChs.map(function(c){
+    var paid=alloc.alloc[c.id]||0, oos=c.total-paid;
+    var st=oos<=0?'paid':(paid>0?'partial':'pending');
+    return '<tr style="font-size:12px"><td style="padding:5px 8px"><strong style="color:#1d4ed8">'+c.billNo+'</strong></td><td style="padding:5px 8px">'+fmtD(c.date)+'</td><td style="padding:5px 8px">'+fmt(c.total)+'</td><td style="padding:5px 8px;color:#15803d">'+fmt(paid)+'</td><td style="padding:5px 8px;font-weight:700;color:'+(oos>0?'#b91c1c':'#15803d')+'">'+fmt(oos)+'</td><td style="padding:5px 8px"><span class="badge badge-'+st+'">'+st[0].toUpperCase()+st.slice(1)+'</span></td></tr>';
+  }).join('');
+
+  var html=
+    '<div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:14px">'+
+      '<div style="font-weight:700;font-size:14px;color:#0f172a;margin-bottom:8px">'+cl.name+'</div>'+
+      '<div style="display:flex;gap:18px;flex-wrap:wrap">'+
+        '<div><div style="font-size:11px;color:#94a3b8">Credit Sales</div><div style="font-weight:700">'+fmt(totalCreditSales)+'</div></div>'+
+        '<div><div style="font-size:11px;color:#94a3b8">Total Paid</div><div style="font-weight:700;color:#15803d">'+fmt(totalPaidSoFar)+'</div></div>'+
+        '<div><div style="font-size:11px;color:'+(os>0?'#b91c1c':'#94a3b8')+'">Outstanding</div><div style="font-weight:800;color:'+(os>0?'#b91c1c':'#15803d')+'">'+fmt(os)+'</div></div>'+
+        (adv>0?'<div><div style="font-size:11px;color:#15803d">Advance Balance</div><div style="font-weight:800;color:#15803d">'+fmt(adv)+'</div></div>':'')+
+      '</div></div>'+
+    (creditChs.length?'<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">FIFO Status (oldest paid first)</div><div style="overflow-x:auto;max-height:150px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:7px"><table><thead><tr><th>Bill No</th><th>Date</th><th>Total</th><th>Paid</th><th>Pending</th><th>Status</th></tr></thead><tbody>'+challanRows+'</tbody></table></div></div>':'')+
+    (os<=0&&adv>0?'<div style="background:#dcfce7;border-radius:7px;padding:10px 12px;font-size:12px;color:#15803d;margin-bottom:12px"><strong>Note:</strong> This client has an advance balance of '+fmt(adv)+'. Any new payment will increase the advance.</div>':'')+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div class="form-row"><label>Amount (₹) *</label><input class="inp" id="pm-amt" type="number" placeholder="'+(os>0?os:'')+'" min="0.01" step="0.01"></div>'+
+      '<div class="form-row"><label>Date *</label><input class="inp" id="pm-date" type="date" value="'+TODAY+'"></div>'+
+      '<div class="form-row"><label>Mode</label><select class="inp" id="pm-mode"><option value="cash">Cash</option><option value="upi">UPI</option></select></div>'+
+      '<div class="form-row"><label>Note</label><input class="inp" id="pm-note" placeholder="e.g. 2nd instalment"></div>'+
+    '</div>';
+  openModal('Record Payment — '+cl.name, html, function(){savePayment(clientId);}, true);
+}
+
+function savePayment(clientId){
+  var amt=parseFloat(el('pm-amt').value)||0;
+  if(!amt||amt<=0){alert('Enter a valid amount.');return;}
+  APP.payments.push({id:'p'+uid(),companyId:APP.activeCompanyId,clientId:clientId,date:el('pm-date').value,amount:amt,mode:el('pm-mode').value,note:el('pm-note').value});
+  clearAllocCache(); saveStore(); closeModal();
+  toast('Payment recorded');
+  refreshAfterPayment();
+}
+
+// ═══ CHALLAN VIEW — redirects to delivery challan template ═══
+function openChallanView(id){ printDeliveryChallan(id); }
+function _openChallanViewOld(id){
+  var ch=APP.challans.find(function(c){return c.id===id;});
+  if(!ch) return;
+  var client=APP.clients.find(function(c){return c.id===ch.clientId;});
+  var pa=paidAmt(ch), os=outstanding(ch), st=challanStatus(ch), co=getActiveCompany();
+  var html=
+    '<div style="border:2px solid #0f172a;border-radius:8px;overflow:hidden">'+
+      '<div style="background:#0f172a;color:#fff;padding:14px 18px">'+
+        '<div style="font-size:15px;font-weight:800">'+co.name+'</div>'+
+        '<div style="font-size:11px;opacity:.7;margin-top:2px">'+co.address+'</div>'+
+        '<div style="font-size:11px;opacity:.7">GST: '+co.gst+' · '+co.phone+'</div>'+
+      '</div>'+
+      '<div style="background:#dbeafe;padding:7px 18px;display:flex;justify-content:space-between;align-items:center">'+
+        '<div style="font-size:13px;font-weight:800;color:#1d4ed8">CHALLAN</div>'+
+        '<div style="font-size:12px;color:#1e40af;font-weight:700">'+ch.billNo+'</div>'+
+      '</div>'+
+      '<div style="padding:14px 18px">'+
+        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;background:#f8fafc;border-radius:7px;padding:10px;margin-bottom:12px">'+
+          '<div><div style="font-size:10px;color:#94a3b8;font-weight:700">BILL NO</div><div style="font-weight:700">'+ch.billNo+'</div></div>'+
+          '<div><div style="font-size:10px;color:#94a3b8;font-weight:700">DATE</div><div style="font-weight:700">'+fmtD(ch.date)+'</div></div>'+
+          '<div><div style="font-size:10px;color:#94a3b8;font-weight:700">VEHICLE</div><div style="font-weight:600">'+(ch.vehicleNo||'—')+'</div></div>'+
+          '<div><div style="font-size:10px;color:#94a3b8;font-weight:700">RECEIVER</div><div style="font-weight:600">'+(ch.receiver||'—')+'</div></div>'+
+        '</div>'+
+        '<div style="margin-bottom:12px">'+
+          '<div style="font-size:10px;color:#94a3b8;font-weight:700;margin-bottom:4px">BILL TO</div>'+
+          '<div style="font-weight:700;font-size:14px">'+(client?.name||'—')+'</div>'+
+          (client?.address?'<div style="font-size:12px;color:#475569">'+client.address+'</div>':'')+
+          (client?.gst?'<div style="font-size:12px;color:#475569">GST: '+client.gst+'</div>':'')+
+          (client?.phone?'<div style="font-size:12px;color:#475569">Phone: '+client.phone+'</div>':'')+
+        '</div>'+
+        '<table style="margin-bottom:10px"><thead><tr>'+
+          '<th style="background:#0f172a;color:#fff">#</th>'+
+          '<th style="background:#0f172a;color:#fff">Product</th>'+
+          '<th style="background:#0f172a;color:#fff">Size</th>'+
+          '<th style="background:#0f172a;color:#fff">Rate</th>'+
+          '<th style="background:#0f172a;color:#fff">Qty</th>'+
+          '<th style="background:#0f172a;color:#fff">Unit</th>'+
+          '<th style="background:#0f172a;color:#fff;text-align:right">Amount</th>'+
+        '</tr></thead><tbody>'+ch.items.map(function(item,i){return '<tr><td style="color:#94a3b8">'+(i+1)+'</td><td><strong>'+item.name+'</strong></td><td>'+item.size+'</td><td>₹'+item.price.toLocaleString('en-IN')+'</td><td style="font-weight:700">'+item.qty+'</td><td>'+item.unit+'</td><td style="text-align:right;font-weight:700">₹'+item.lt.toLocaleString('en-IN')+'</td></tr>';}).join('')+'</tbody>'+
+        '<tfoot><tr><td colspan="6" style="text-align:right;padding:10px 13px;background:#0f172a;color:#fff;font-weight:700">GRAND TOTAL</td><td style="padding:10px 13px;background:#0f172a;color:#fff;font-weight:800;text-align:right">₹'+ch.total.toLocaleString('en-IN')+'</td></tr></tfoot></table>'+
+        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;background:#f8fafc;border-radius:7px;padding:10px">'+
+          '<div><div style="font-size:10px;color:#94a3b8;font-weight:700">MODE</div><span class="badge badge-'+ch.mode+'">'+ch.mode.toUpperCase()+'</span></div>'+
+          '<div><div style="font-size:10px;color:#94a3b8;font-weight:700">PAID</div><div style="font-weight:700;color:#15803d">₹'+pa.toLocaleString('en-IN')+'</div></div>'+
+          '<div><div style="font-size:10px;color:'+(os>0?'#b91c1c':'#94a3b8')+';font-weight:700">OUTSTANDING</div><div style="font-weight:700;color:'+(os>0?'#b91c1c':'#15803d')+'">₹'+os.toLocaleString('en-IN')+'</div></div>'+
+          '<div><div style="font-size:10px;color:#94a3b8;font-weight:700">STATUS</div><span class="badge badge-'+st+'">'+st.toUpperCase()+'</span></div>'+
+        '</div>'+
+        (ch.notes?'<div style="margin-top:10px;padding:8px 12px;background:#fffbeb;border-radius:7px;font-size:12px;color:#92400e"><strong>Notes:</strong> '+ch.notes+'</div>':'')+
+      '</div></div>'+
+    '<div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">'+
+      (ch.mode==='credit'?'<button class="btn btn-success" onclick="closeModal();openPaymentModal('+ch.clientId+')"><i class="fas fa-rupee-sign" style="margin-right:5px"></i>Record Payment</button>':'<div></div>')+
+      '<div style="display:flex;gap:7px">'+
+        '<button class="btn" style="background:#0369a1;color:#fff" onclick="closeModal();printDeliveryChallan(\''+id+'\')"><i class="fas fa-print" style="margin-right:5px"></i>Print Delivery</button>'+
+        '<button class="btn" style="background:#dc5800;color:#fff" onclick="downloadChallanPDF(\''+id+'\')"><i class="fas fa-file-pdf" style="margin-right:5px"></i>Download PDF</button>'+
+      '</div></div>';
+  openModal('Challan — '+ch.billNo, html, null, true);
+  setTimeout(function(){ var sf=el('modal-foot').querySelector('#modal-save'); if(sf) sf.style.display='none'; },0);
+}
+
+// ═══ CLIENT LEDGER MODAL ═══
+function openClientLedger(clientId){
+  var cl=APP.clients.find(function(c){return c.id===clientId;});
+  if(!cl) return;
+  var events=[];
+  APP.challans.filter(function(c){return c.clientId===clientId&&c.mode==='credit';}).forEach(function(c){
+    events.push({date:c.date,type:'sale',amount:c.total,ref:c.billNo,desc:c.items.map(function(i){return i.name;}).join(', '),id:c.id});
+  });
+  APP.payments.filter(function(p){return p.clientId===clientId;}).forEach(function(p){
+    events.push({date:p.date,type:'payment',amount:p.amount,ref:'—',desc:p.note||'Payment received',mode:p.mode});
+  });
+  events.sort(function(a,b){return new Date(a.date)-new Date(b.date)||(a.type==='payment'?1:-1);});
+
+  var balance=0;
+  var rows=events.map(function(e){
+    if(e.type==='sale'){
+      balance+=e.amount;
+      return '<tr><td>'+fmtD(e.date)+'</td><td><strong style="color:#1d4ed8;cursor:pointer" onclick="openChallanView(\''+e.id+'\')">'+e.ref+'</strong><br><span style="font-size:11px;color:#94a3b8">'+e.desc+'</span></td><td style="color:#b91c1c;font-weight:700">'+fmt(e.amount)+'</td><td style="color:#94a3b8">—</td><td style="font-weight:800;color:'+(balance>0?'#b91c1c':'#15803d')+'">'+fmt(Math.abs(balance))+' '+(balance>0?'Dr':'Cr')+'</td></tr>';
+    } else {
+      balance-=e.amount;
+      return '<tr style="background:#f0fdf4"><td>'+fmtD(e.date)+'</td><td><span style="color:#15803d;font-weight:700">Payment Received</span><br><span style="font-size:11px;color:#64748b">'+e.desc+' <span class="badge badge-'+e.mode+'" style="font-size:10px">'+e.mode.toUpperCase()+'</span></span></td><td style="color:#94a3b8">—</td><td style="color:#15803d;font-weight:700">'+fmt(e.amount)+'</td><td style="font-weight:800;color:'+(balance>0?'#b91c1c':balance<0?'#15803d':'#475569')+'">'+(balance===0?'₹0 Nil':fmt(Math.abs(balance))+' '+(balance>0?'Dr':'Cr'))+'</td></tr>';
+    }
+  }).join('');
+
+  var bal=clientBalance(clientId);
+  var html=
+    '<div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">'+
+      '<div><div style="font-weight:700;font-size:14px;color:#0f172a">'+cl.name+'</div><div style="font-size:11px;color:#64748b">'+cl.gst+' · '+cl.phone+'</div></div>'+
+      '<div style="text-align:right"><div style="font-size:11px;color:#94a3b8">'+(bal>0?'Outstanding Balance':bal<0?'Advance Balance':'Balance')+'</div><div style="font-size:18px;font-weight:800;color:'+(bal>0?'#b91c1c':bal<0?'#15803d':'#475569')+'">'+fmt(Math.abs(bal))+' '+(bal>0?'Dr':bal<0?'Cr':'')+'</div></div>'+
+    '</div>'+
+    (events.length?'<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Particulars</th><th style="color:#b91c1c">Debit (Sales)</th><th style="color:#15803d">Credit (Payments)</th><th>Balance</th></tr></thead><tbody>'+rows+'</tbody></table></div><div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><button class="btn" style="background:#dc5800;color:#fff" onclick="downloadLedgerPDF('+clientId+')"><i class="fas fa-file-pdf" style="margin-right:5px"></i>Download Ledger PDF</button><button class="btn btn-success" onclick="closeModal();openPaymentModal('+clientId+')"><i class="fas fa-rupee-sign" style="margin-right:5px"></i>Record Payment</button></div>':'<div style="text-align:center;padding:30px;color:#94a3b8">No credit transactions yet.</div>');
+
+  openModal('Party Ledger — '+cl.name, html, null, true);
+  setTimeout(function(){ var sf=el('modal-foot').querySelector('#modal-save'); if(sf) sf.style.display='none'; },0);
+}
+
+// ═══ DELETE ═══
+function confirmDelete(type, id){
+  var labels={challan:'challan',client:'client',product:'product'};
+  el('modal-title').textContent='Confirm Delete';
+  el('modal-body').innerHTML='<div style="text-align:center;padding:10px 0"><i class="fas fa-trash-alt" style="font-size:36px;color:#ef4444;margin-bottom:12px;display:block"></i><div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:6px">Delete this '+labels[type]+'?</div><div style="color:#64748b;font-size:13px">This action cannot be undone.</div></div>';
+  el('modal-box').className='modal-box';
+  el('modal').classList.add('open');
+  el('modal-foot').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-danger" onclick="doDelete(\''+type+'\',\''+id+'\')">Delete</button>';
+}
+function doDelete(type,id){
+  if(type==='challan'){
+    APP.challans=APP.challans.filter(function(c){return c.id!==id;});
+    clearAllocCache();
+  } else if(type==='client'){
+    APP.clients=APP.clients.filter(function(c){return c.id!=id;});
+    APP.payments=APP.payments.filter(function(p){return p.clientId!=id;});
+    clearAllocCache();
+  } else if(type==='product'){
+    APP.products=APP.products.filter(function(p){return p.id!=id;});
+  }
+  saveStore(); closeModal();
+  el('modal-foot').innerHTML='<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" id="modal-save" onclick="handleSave()">Save</button>';
+  toast(type[0].toUpperCase()+type.slice(1)+' deleted','t-del');
+  if(type==='challan') renderChallans();
+  if(type==='client') renderClients();
+  if(type==='product') renderProducts();
+  renderDashboard();
+}
+
+// ═══════════════════════════════════════════════
+//  POPULATE SELECTS
+// ═══════════════════════════════════════════════
+function populateClientSelects(){
+  ['fc-cl','r-cl','p-cl-filter','qp-client'].forEach(function(selId){
+    var sel=el(selId); if(!sel) return;
+    var cur=sel.value;
+    while(sel.options.length>1) sel.remove(1);
+    cClients().forEach(function(c){sel.add(new Option(c.name,c.id));});
+    sel.value=cur;
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  PDF EXPORTS
+// ═══════════════════════════════════════════════
+function pdfHeader(doc, subtitle, landscape, company) {
+  var W = landscape ? 297 : 210, co = company || getActiveCompany();
+  var rgb = hexToRgb(co.primaryColor||'#0f172a');
+  doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+  doc.rect(0, 0, W, 36, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(15); doc.setFont('helvetica', 'bold');
+  doc.text(co.name, 14, 13);
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+  doc.text(co.address, 14, 20);
+  doc.text('Phone: ' + co.phone + '  |  GST: ' + co.gst + '  |  ' + co.email, 14, 26);
+  if (subtitle) { doc.setFontSize(8); doc.text(subtitle, 14, 32); }
+}
+
+function pdfFooter(doc, landscape, company) {
+  var W = landscape ? 297 : 210;
+  var co = company || getActiveCompany(), pageH = landscape ? 210 : 297, fY = pageH - 12;
+  doc.setDrawColor(226, 232, 240); doc.line(14, fY - 3, W - 14, fY - 3);
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(148, 163, 184);
+  doc.text('Generated by ChallanPro · ' + fmtD(TODAY), 14, fY + 2);
+  doc.setFont('helvetica', 'bold'); doc.setTextColor(71, 85, 105);
+  doc.text('For: ' + co.name, W - 14, fY - 1, { align: 'right' });
+  doc.setFont('helvetica', 'normal'); doc.setTextColor(148, 163, 184);
+  doc.text((co.authorizedSignatory||co.proprietor) ? (co.authorizedSignatory||co.proprietor) + ' — Authorised Signatory' : 'Authorised Signatory', W - 14, fY + 4, { align: 'right' });
+}
+
+function downloadChallanPDF(id) {
+  // Open the delivery challan overlay then auto-trigger browser Print → Save as PDF
+  printDeliveryChallan(id);
+  setTimeout(function(){ window.print(); }, 350);
+}
+
+function downloadReportPDF() {
+  if (!window.jspdf) { alert('PDF library not loaded. Check your internet connection.'); return; }
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  var W = 297, mg = 14;
+  var cId = el('r-cl').value, mn = el('r-mn').value;
+  var list = cChallans().filter(function(c){return c.date.startsWith(mn);});
+  if (cId) list = list.filter(function(c){return c.clientId == cId;});
+  list.sort(function(a,b){return new Date(a.date)-new Date(b.date);});
+  var bName  = cId ? clientName(parseInt(cId)) : 'All Clients';
+  var mLabel = new Date(mn + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  var tS = list.reduce(function(s,c){return s+c.total;},0);
+  var tP = list.reduce(function(s,c){return s+paidAmt(c);},0);
+  var tO = list.reduce(function(s,c){return s+outstanding(c);},0);
+  var tCash = list.filter(function(c){return c.mode==='cash';}).reduce(function(s,c){return s+c.total;},0);
+  var tUPI  = list.filter(function(c){return c.mode==='upi';}).reduce(function(s,c){return s+c.total;},0);
+  var tCred = list.filter(function(c){return c.mode==='credit';}).reduce(function(s,c){return s+c.total;},0);
+
+  pdfHeader(doc, 'Monthly Report  ·  ' + mLabel + '  ·  ' + bName + '  ·  Generated: ' + fmtD(TODAY), true);
+  var y = 43;
+  var boxes = [
+    { l:'Total Sales',    v:fmtPdf(tS),   c:[29,78,216]  },
+    { l:'Cash Sales',     v:fmtPdf(tCash),c:[21,128,61]  },
+    { l:'UPI Sales',      v:fmtPdf(tUPI), c:[109,40,217] },
+    { l:'Credit Sales',   v:fmtPdf(tCred),c:[157,23,77]  },
+    { l:'Collected',      v:fmtPdf(tP),   c:[21,128,61]  },
+    { l:'Outstanding',    v:fmtPdf(tO),   c:tO>0?[185,28,28]:[21,128,61] },
+    { l:'Total Challans', v:list.length+'',c:[100,116,139]}
+  ];
+  boxes.forEach(function(b, i) {
+    var x = mg + i * 38.5;
+    doc.setFillColor(248, 250, 252); doc.rect(x, y, 36, 16, 'F');
+    doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 116, 139); doc.text(b.l, x+2, y+7);
+    doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor.apply(doc, b.c); doc.text(b.v, x+2, y+14);
+  });
+  y += 22;
+  doc.autoTable({
+    startY: y, margin: { left: mg, right: mg },
+    head: [['Date', 'Bill No', 'Client', 'Items', 'Total (Rs.)', 'Paid (Rs.)', 'Outstanding (Rs.)', 'Mode', 'Status']],
+    body: list.map(function(c){return [fmtD(c.date), c.billNo, clientName(c.clientId), c.items.map(function(i){return i.name+'('+i.qty+(i.unit==='piece'?'pcs':'m')+')';}).join(', '), c.total.toLocaleString('en-IN'), paidAmt(c).toLocaleString('en-IN'), outstanding(c).toLocaleString('en-IN'), c.mode.toUpperCase(), challanStatus(c).toUpperCase()];}),
+    foot: [['', '', '', 'TOTAL', tS.toLocaleString('en-IN'), tP.toLocaleString('en-IN'), tO.toLocaleString('en-IN'), '', '']],
+    headStyles: { fillColor:[15,23,42], textColor:[255,255,255], fontSize:8, fontStyle:'bold', cellPadding:3 },
+    bodyStyles: { fontSize:8, cellPadding:2.5, textColor:[51,65,85] },
+    footStyles: { fillColor:[15,23,42], textColor:[255,255,255], fontStyle:'bold', fontSize:8 },
+    alternateRowStyles: { fillColor:[248,250,252] },
+    columnStyles: { 4:{halign:'right'}, 5:{halign:'right',textColor:[21,128,61]}, 6:{halign:'right',textColor:[185,28,28]} }
+  });
+  pdfFooter(doc, true);
+  doc.save('Report-' + mLabel.replace(' ','-') + '-' + bName.replace(/\s+/g,'-') + '.pdf');
+}
+
+function downloadAgingPDF() {
+  if (!window.jspdf) { alert('PDF library not loaded. Check your internet connection.'); return; }
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  var W = 297, mg = 14;
+  var b = agingBuckets(null);
+  var totalOS = b.b0 + b.b31 + b.b61 + b.b90;
+  pdfHeader(doc, 'Credit Aging Analysis  ·  As of ' + fmtD(TODAY), true);
+  var y = 43;
+  var boxes = [
+    { l:'0–30 Days (Fresh)',    v:fmtPdf(b.b0),  c:[21,128,61]   },
+    { l:'31–60 Days (Remind)',  v:fmtPdf(b.b31), c:[217,119,6]   },
+    { l:'61–90 Days (Urgent)',  v:fmtPdf(b.b61), c:[220,38,38]   },
+    { l:'90+ Days (Critical)',  v:fmtPdf(b.b90), c:[127,29,29]   },
+    { l:'Total Outstanding',    v:fmtPdf(totalOS),c:[185,28,28]  },
+  ];
+  boxes.forEach(function(bx, i) {
+    var x = mg + i * 53;
+    doc.setFillColor(248,250,252); doc.rect(x, y, 50, 16, 'F');
+    doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(100,116,139); doc.text(bx.l, x+2, y+7);
+    doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor.apply(doc, bx.c); doc.text(bx.v, x+2, y+14);
+  });
+  y += 22;
+  doc.autoTable({
+    startY: y, margin: { left: mg, right: mg },
+    head: [['Client', 'Phone', '0–30d (Rs.)', '31–60d (Rs.)', '61–90d (Rs.)', '90+d (Rs.)', 'Total OS (Rs.)', 'Oldest', 'Last Asked', 'Risk']],
+    body: cClients().map(function(cl) {
+      var s = clientStats(cl.id), bk = agingBuckets(cl.id), r = riskLevel(s.oldest, s.os);
+      var laD = cl.lastAsked ? daysOld(cl.lastAsked) + 'd ago' : 'Never asked!';
+      return [cl.name, cl.phone, bk.b0>0?bk.b0.toLocaleString('en-IN'):'—', bk.b31>0?bk.b31.toLocaleString('en-IN'):'—', bk.b61>0?bk.b61.toLocaleString('en-IN'):'—', bk.b90>0?bk.b90.toLocaleString('en-IN'):'—', s.os>0?s.os.toLocaleString('en-IN'):'Clear', s.oldest>0?s.oldest+' days':'—', laD, r.label];
+    }),
+    headStyles: { fillColor:[15,23,42], textColor:[255,255,255], fontSize:8, fontStyle:'bold', cellPadding:3 },
+    bodyStyles: { fontSize:8, cellPadding:2.5, textColor:[51,65,85] },
+    alternateRowStyles: { fillColor:[248,250,252] }
+  });
+  y = doc.lastAutoTable.finalY + 10;
+  var pending = [...cChallans()].filter(function(c){return outstanding(c)>0;}).sort(function(a,b){return daysOld(b.date)-daysOld(a.date);});
+  if (pending.length) {
+    doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(15,23,42);
+    doc.text('All Pending Credits — Oldest First', mg, y); y += 4;
+    doc.autoTable({
+      startY: y, margin: { left: mg, right: mg },
+      head: [['Bill No', 'Date', 'Client', 'Total (Rs.)', 'Outstanding (Rs.)', 'Days Old', 'Status']],
+      body: pending.map(function(c){return [c.billNo, fmtD(c.date), clientName(c.clientId), c.total.toLocaleString('en-IN'), outstanding(c).toLocaleString('en-IN'), daysOld(c.date)+' days', challanStatus(c).toUpperCase()];}),
+      headStyles: { fillColor:[15,23,42], textColor:[255,255,255], fontSize:8, fontStyle:'bold', cellPadding:3 },
+      bodyStyles: { fontSize:8, cellPadding:2.5, textColor:[51,65,85] },
+      alternateRowStyles: { fillColor:[248,250,252] },
+      columnStyles: { 4:{halign:'right',textColor:[185,28,28],fontStyle:'bold'}, 5:{halign:'right'} }
+    });
+  }
+  pdfFooter(doc, true);
+  doc.save('Aging-Analysis-' + TODAY + '.pdf');
+}
+
+function downloadChallansListPDF() {
+  if (!window.jspdf) { alert('PDF library not loaded.'); return; }
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+  var W=297, mg=14;
+
+  // mirror renderChallans filter state
+  var q  = (el('fc-q').value||'').toLowerCase();
+  var cl = el('fc-cl').value;
+  var st = el('fc-st').value;
+  var mo = el('fc-mo').value;
+  var mn = el('fc-mn').value;
+  var list = [...cChallans()].sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+  if(q)  list=list.filter(function(c){return c.billNo.toLowerCase().includes(q)||clientName(c.clientId).toLowerCase().includes(q)||c.items.some(function(i){return i.name.toLowerCase().includes(q);});});
+  if(cl) list=list.filter(function(c){return c.clientId==cl;});
+  if(st) list=list.filter(function(c){return challanStatus(c)===st;});
+  if(mo) list=list.filter(function(c){return c.mode===mo;});
+  if(mn) list=list.filter(function(c){return c.date.startsWith(mn);});
+
+  var tS=list.reduce(function(s,c){return s+c.total;},0);
+  var tP=list.reduce(function(s,c){return s+paidAmt(c);},0);
+  var tO=list.reduce(function(s,c){return s+outstanding(c);},0);
+  var nPaid=list.filter(function(c){return challanStatus(c)==='paid';}).length;
+  var nPart=list.filter(function(c){return challanStatus(c)==='partial';}).length;
+  var nPend=list.filter(function(c){return challanStatus(c)==='pending';}).length;
+
+  var parts=[];
+  if(cl) parts.push(clientName(parseInt(cl)));
+  if(mn) parts.push(new Date(mn+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'}));
+  if(st) parts.push(st.toUpperCase());
+  var subtitle='Challans'+(parts.length?' — '+parts.join(' · '):'')+'  ·  Generated: '+fmtD(TODAY);
+
+  pdfHeader(doc, subtitle, true);
+  var y=43;
+  var boxes=[
+    {l:'Total Challans',  v:list.length+'',   c:[29,78,216]},
+    {l:'Total Value',     v:fmtPdf(tS),        c:[29,78,216]},
+    {l:'Collected',       v:fmtPdf(tP),        c:[21,128,61]},
+    {l:'Outstanding',     v:fmtPdf(tO),        c:tO>0?[185,28,28]:[21,128,61]},
+    {l:'Paid',            v:nPaid+'',           c:[21,128,61]},
+    {l:'Partial',         v:nPart+'',           c:[217,119,6]},
+    {l:'Pending',         v:nPend+'',           c:[185,28,28]},
+  ];
+  boxes.forEach(function(b,i){
+    var x=mg+i*38;
+    doc.setFillColor(248,250,252);doc.rect(x,y,36,16,'F');
+    doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(100,116,139);doc.text(b.l,x+2,y+7);
+    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor.apply(doc,b.c);doc.text(b.v,x+2,y+14);
+  });
+  y+=22;
+  doc.autoTable({
+    startY:y, margin:{left:mg,right:mg},
+    head:[['Date','Bill No','Client','Items','Total (Rs.)','Paid (Rs.)','Outstanding (Rs.)','Mode','Age','Status']],
+    body:list.map(function(c){
+      var pa=paidAmt(c),os=outstanding(c),d=daysOld(c.date);
+      return [fmtD(c.date),c.billNo,clientName(c.clientId),
+        c.items.map(function(i){return i.name+'('+i.qty+(i.unit==='piece'?'pcs':'m')+')';}).join(', '),
+        c.total.toLocaleString('en-IN'),pa.toLocaleString('en-IN'),os.toLocaleString('en-IN'),
+        c.mode.toUpperCase(),d+'d',challanStatus(c).toUpperCase()];
+    }),
+    foot:[['','','','TOTAL',tS.toLocaleString('en-IN'),tP.toLocaleString('en-IN'),tO.toLocaleString('en-IN'),'','','']],
+    headStyles:{fillColor:[15,23,42],textColor:[255,255,255],fontSize:8,fontStyle:'bold',cellPadding:3},
+    bodyStyles:{fontSize:8,cellPadding:2.5,textColor:[51,65,85]},
+    footStyles:{fillColor:[15,23,42],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
+    alternateRowStyles:{fillColor:[248,250,252]},
+    columnStyles:{4:{halign:'right'},5:{halign:'right',textColor:[21,128,61]},6:{halign:'right',textColor:[185,28,28],fontStyle:'bold'},8:{halign:'center'}}
+  });
+  pdfFooter(doc, true);
+  var fname='Challans'+(mn?'-'+mn:'')+(cl?'-'+clientName(parseInt(cl)).replace(/\s+/g,'-'):'');
+  doc.save(fname+'-'+TODAY+'.pdf');
+}
+
+function downloadPaymentsPDF() {
+  if (!window.jspdf) { alert('PDF library not loaded.'); return; }
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+  var W=297, mg=14;
+
+  var cIdFilter = el('p-cl-filter')?.value || '';
+  var list=[...cPayments()];
+  if(cIdFilter) list=list.filter(function(p){return p.clientId==cIdFilter;});
+  list.sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+
+  var tot  =list.reduce(function(s,p){return s+p.amount;},0);
+  var tCash=list.filter(function(p){return p.mode==='cash';}).reduce(function(s,p){return s+p.amount;},0);
+  var tUPI =list.filter(function(p){return p.mode==='upi'; }).reduce(function(s,p){return s+p.amount;},0);
+
+  var subtitle='Payment Collections  ·  '+(cIdFilter?clientName(parseInt(cIdFilter)):'All Clients')+'  ·  Generated: '+fmtD(TODAY);
+  pdfHeader(doc, subtitle, true);
+  var y=43;
+  var boxes=[
+    {l:'Total Collected', v:fmtPdf(tot),        c:[21,128,61]},
+    {l:'Cash',            v:fmtPdf(tCash),       c:[21,128,61]},
+    {l:'UPI',             v:fmtPdf(tUPI),        c:[109,40,217]},
+    {l:'Total Entries',   v:list.length+'',       c:[29,78,216]},
+  ];
+  boxes.forEach(function(b,i){
+    var x=mg+i*66;
+    doc.setFillColor(248,250,252);doc.rect(x,y,63,16,'F');
+    doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(100,116,139);doc.text(b.l,x+2,y+7);
+    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor.apply(doc,b.c);doc.text(b.v,x+2,y+14);
+  });
+  y+=22;
+  doc.autoTable({
+    startY:y, margin:{left:mg,right:mg},
+    head:[['Date','Client','Amount (Rs.)','Mode','Note']],
+    body:list.map(function(p){
+      return [fmtD(p.date),clientName(p.clientId),p.amount.toLocaleString('en-IN'),p.mode.toUpperCase(),p.note||'—'];
+    }),
+    foot:[['','TOTAL',tot.toLocaleString('en-IN'),'','']],
+    headStyles:{fillColor:[15,23,42],textColor:[255,255,255],fontSize:8,fontStyle:'bold',cellPadding:3},
+    bodyStyles:{fontSize:8,cellPadding:2.5,textColor:[51,65,85]},
+    footStyles:{fillColor:[15,23,42],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
+    alternateRowStyles:{fillColor:[248,250,252]},
+    columnStyles:{2:{halign:'right',textColor:[21,128,61],fontStyle:'bold'}}
+  });
+  pdfFooter(doc, true);
+  var fname='Payments'+(cIdFilter?'-'+clientName(parseInt(cIdFilter)).replace(/\s+/g,'-'):'');
+  doc.save(fname+'-'+TODAY+'.pdf');
+}
+
+function downloadClientsPDF() {
+  if (!window.jspdf) { alert('PDF library not loaded.'); return; }
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+  var W=297, mg=14;
+
+  var totalSales=cClients().reduce(function(s,cl){
+    return s+cChallans().filter(function(c){return c.clientId===cl.id;}).reduce(function(ss,c){return ss+c.total;},0);
+  },0);
+  var totalPaid=cPayments().reduce(function(s,p){return s+p.amount;},0);
+  var totalOS=cClients().reduce(function(s,cl){return s+Math.max(0,clientBalance(cl.id));},0);
+  var nCredit=cClients().filter(function(cl){return Math.max(0,clientBalance(cl.id))>0;}).length;
+
+  pdfHeader(doc, 'Client Summary  ·  Generated: '+fmtD(TODAY), true);
+  var y=43;
+  var boxes=[
+    {l:'Total Clients',      v:cClients().length+'',  c:[29,78,216]},
+    {l:'Total Sales',        v:fmtPdf(totalSales),      c:[29,78,216]},
+    {l:'Total Collected',    v:fmtPdf(totalPaid),       c:[21,128,61]},
+    {l:'Total Outstanding',  v:fmtPdf(totalOS),         c:totalOS>0?[185,28,28]:[21,128,61]},
+    {l:'Clients with Credit',v:nCredit+'',              c:[185,28,28]},
+  ];
+  boxes.forEach(function(b,i){
+    var x=mg+i*53;
+    doc.setFillColor(248,250,252);doc.rect(x,y,50,16,'F');
+    doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(100,116,139);doc.text(b.l,x+2,y+7);
+    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor.apply(doc,b.c);doc.text(b.v,x+2,y+14);
+  });
+  y+=22;
+  doc.autoTable({
+    startY:y, margin:{left:mg,right:mg},
+    head:[['Client','GST','Phone','Total Sales (Rs.)','Paid (Rs.)','Outstanding (Rs.)','Last Challan','Oldest Debt','Last Asked','Risk']],
+    body:cClients().map(function(cl){
+      var s=clientStats(cl.id); var r=riskLevel(s.oldest,s.os);
+      var laD=cl.lastAsked?daysOld(cl.lastAsked)+'d ago':'Never asked!';
+      var advStr=s.advance>0?'Adv '+s.advance.toLocaleString('en-IN'):(s.os>0?s.os.toLocaleString('en-IN'):'Clear');
+      return [
+        cl.name, cl.gst||'—', cl.phone||'—',
+        s.totalSales.toLocaleString('en-IN'),
+        s.totalPaid.toLocaleString('en-IN'),
+        advStr,
+        fmtD(s.lastCh?.date),
+        s.oldest>0?s.oldest+' days':'—',
+        laD, r.label
+      ];
+    }),
+    headStyles:{fillColor:[15,23,42],textColor:[255,255,255],fontSize:8,fontStyle:'bold',cellPadding:3},
+    bodyStyles:{fontSize:8,cellPadding:2.5,textColor:[51,65,85]},
+    alternateRowStyles:{fillColor:[248,250,252]},
+    columnStyles:{3:{halign:'right'},4:{halign:'right',textColor:[21,128,61]},5:{halign:'right',textColor:[185,28,28],fontStyle:'bold'}}
+  });
+  pdfFooter(doc, true);
+  doc.save('Clients-Summary-'+TODAY+'.pdf');
+}
+
+// ═══════════════════════════════════════════════
+//  DATA MANAGEMENT
+// ═══════════════════════════════════════════════
+function exportData() {
+  const json = JSON.stringify(APP, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'ChallanPro-Backup-' + TODAY + '.json';
+  a.click(); URL.revokeObjectURL(url);
+  toast('Backup exported successfully');
+}
+
+function exportExcel() {
+  if (!window.XLSX) { alert('Excel library not loaded. Check your internet connection.'); return; }
+  var wb = XLSX.utils.book_new();
+
+  /* ── helper: create sheet from array-of-arrays, set col widths ── */
+  function mkSheet(rows, colWidths) {
+    var ws = XLSX.utils.aoa_to_sheet(rows);
+    if (colWidths) ws['!cols'] = colWidths.map(function(w){ return {wch:w}; });
+    return ws;
+  }
+
+  /* ── 1. SUMMARY ── */
+  var sumRows = [
+    ['ChallanPro — Full Data Export'],
+    ['Exported on:', fmtD(TODAY)],
+    [],
+    ['Company','Total Challans','Total Sales (Rs.)','Total Collected (Rs.)','Outstanding (Rs.)','Total Clients','Total Products']
+  ];
+  APP.companies.forEach(function(co){
+    var chs = APP.challans.filter(function(c){return c.companyId===co.id;});
+    var cls = APP.clients.filter(function(c){return c.companyId===co.id;});
+    var prs = APP.products.filter(function(p){return p.companyId===co.id;});
+    var sales = chs.reduce(function(s,c){return s+(c.total||0);},0);
+    var paid  = chs.reduce(function(s,c){return s+paidAmt(c);},0);
+    sumRows.push([co.name, chs.length, sales, paid, sales-paid, cls.length, prs.length]);
+  });
+  XLSX.utils.book_append_sheet(wb, mkSheet(sumRows,[30,14,18,20,18,12,12]), 'Summary');
+
+  /* ── 2. CHALLANS ── */
+  var chRows = [['Company','Bill No','Date','Client','Payment Mode','Total (Rs.)','Paid (Rs.)','Outstanding (Rs.)','Status','Vehicle No','Receiver','Notes']];
+  APP.challans.forEach(function(ch){
+    var co = APP.companies.find(function(c){return c.id===ch.companyId;})||{name:''};
+    var cl = APP.clients.find(function(c){return c.id===ch.clientId;})||{name:''};
+    var pa = paidAmt(ch);
+    chRows.push([co.name, ch.billNo, fmtD(ch.date), cl.name,
+      ch.mode, ch.total||0, pa, (ch.total||0)-pa,
+      challanStatus(ch), ch.vehicleNo||'', ch.receiver||'', ch.notes||'']);
+  });
+  XLSX.utils.book_append_sheet(wb, mkSheet(chRows,[22,14,14,24,12,13,12,15,10,12,16,28]), 'Challans');
+
+  /* ── 3. CHALLAN ITEMS ── */
+  var itRows = [['Company','Bill No','Date','Client','Item / Product','Size','Qty','Unit','Rate (Rs.)','Amount (Rs.)']];
+  APP.challans.forEach(function(ch){
+    var co = APP.companies.find(function(c){return c.id===ch.companyId;})||{name:''};
+    var cl = APP.clients.find(function(c){return c.id===ch.clientId;})||{name:''};
+    (ch.items||[]).forEach(function(it){
+      itRows.push([co.name, ch.billNo, fmtD(ch.date), cl.name,
+        it.name||'', it.size||'', it.qty||0, it.unit||'', it.price||0, it.lt||0]);
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, mkSheet(itRows,[22,14,14,24,28,10,8,8,13,14]), 'Challan Items');
+
+  /* ── 4. PAYMENTS ── */
+  var pyRows = [['Company','Date','Client','Amount (Rs.)','Mode','Notes']];
+  APP.payments.forEach(function(p){
+    var co = APP.companies.find(function(c){return c.id===p.companyId;})||{name:''};
+    var cl = APP.clients.find(function(c){return c.id===p.clientId;})||{name:''};
+    pyRows.push([co.name, fmtD(p.date), cl.name, p.amount||0, p.mode||'', p.notes||'']);
+  });
+  XLSX.utils.book_append_sheet(wb, mkSheet(pyRows,[22,14,24,14,10,28]), 'Payments');
+
+  /* ── 5. CLIENTS ── */
+  var clRows = [['Company','Name','Phone','Email','Address','GST','Risk Level','Total Sales (Rs.)','Total Paid (Rs.)','Outstanding (Rs.)','Oldest Pending (Days)','Last Asked']];
+  APP.clients.forEach(function(cl){
+    var co = APP.companies.find(function(c){return c.id===cl.companyId;})||{name:''};
+    var chs = APP.challans.filter(function(c){return c.clientId===cl.id;});
+    var sales = chs.reduce(function(s,c){return s+(c.total||0);},0);
+    var paid  = chs.reduce(function(s,c){return s+paidAmt(c);},0);
+    var pendingDates = chs.filter(function(c){return outstanding(c)>0;}).map(function(c){return daysOld(c.date);});
+    var oldest = pendingDates.length ? Math.max.apply(null,pendingDates) : 0;
+    clRows.push([co.name, cl.name, cl.phone||'', cl.email||'', cl.address||'',
+      cl.gst||'', cl.risk||'low', sales, paid, sales-paid, oldest, cl.lastAsked||'']);
+  });
+  XLSX.utils.book_append_sheet(wb, mkSheet(clRows,[22,24,14,24,32,20,10,15,13,15,18,12]), 'Clients');
+
+  /* ── 6. PRODUCTS ── */
+  var prRows = [['Company','Product Name','Size','Unit','Default Rate (Rs.)','Description']];
+  APP.products.forEach(function(p){
+    var co = APP.companies.find(function(c){return c.id===p.companyId;})||{name:''};
+    prRows.push([co.name, p.name||'', p.size||'', p.unit||'', p.price||0, p.desc||'']);
+  });
+  XLSX.utils.book_append_sheet(wb, mkSheet(prRows,[22,28,10,8,16,36]), 'Products');
+
+  /* ── 7. COMPANIES ── */
+  var coRows = [['Name','Phone','Email','Address','GST','Bank / Payment Details','Bill Prefix']];
+  APP.companies.forEach(function(co){
+    coRows.push([co.name||'', co.phone||'', co.email||'', co.address||'',
+      co.gst||'', co.bank||'', co.billPrefix||'']);
+  });
+  XLSX.utils.book_append_sheet(wb, mkSheet(coRows,[30,14,28,40,20,40,12]), 'Companies');
+
+  /* ── 8. AGING ANALYSIS ── */
+  var agRows = [['Company','Client','Phone','Outstanding (Rs.)','0–30 Days (Rs.)','31–60 Days (Rs.)','61–90 Days (Rs.)','90+ Days (Rs.)','Risk Level','Oldest (Days)','Last Asked']];
+  APP.clients.forEach(function(cl){
+    var co = APP.companies.find(function(c){return c.id===cl.companyId;})||{name:''};
+    var chs = APP.challans.filter(function(c){return c.clientId===cl.id&&c.mode==='credit';});
+    var os  = chs.reduce(function(s,c){return s+outstanding(c);},0);
+    if(os<=0) return; // skip cleared clients
+    var bkts = agingBuckets(cl.id);
+    var pendingDays = chs.filter(function(c){return outstanding(c)>0;}).map(function(c){return daysOld(c.date);});
+    var oldest = pendingDays.length ? Math.max.apply(null,pendingDays) : 0;
+    var risk = riskLevel(oldest, os);
+    agRows.push([co.name, cl.name, cl.phone||'', os,
+      bkts.b0, bkts.b31, bkts.b61, bkts.b90,
+      risk.label, oldest, cl.lastAsked||'']);
+  });
+  XLSX.utils.book_append_sheet(wb, mkSheet(agRows,[22,24,14,16,16,16,16,14,10,12,12]), 'Aging Analysis');
+
+  /* ── Save ── */
+  XLSX.writeFile(wb, 'ChallanPro-Export-' + TODAY + '.xlsx');
+  toast('Excel exported — 8 sheets ✓');
+}
+function importData(input) {
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if(!data.challans || !data.clients) { alert('Invalid backup file — missing challans or clients data.'); return; }
+      if(!confirm('This will replace ALL current data with the backup. Continue?')) { input.value=''; return; }
+      APP = data; clearAllocCache(); saveStore();
+      clearAllocCache(); populateClientSelects(); renderDashboard(); renderDailyBook(); renderChallans(); renderCustomers(); renderFollowups(); renderProducts(); renderCompanies(); renderMonthly(); renderAging(); renderPayments(); updateCoSwitcher();
+      nav('dashboard'); toast('Backup imported successfully');
+    } catch(err) { alert('Could not read file: ' + err.message); }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+function resetToSeed() {
+  if(!confirm('Reset to demo data? All your current data will be cleared.')) return;
+  APP = JSON.parse(JSON.stringify(SEED)); clearAllocCache(); saveStore();
+  clearAllocCache(); populateClientSelects(); renderDashboard(); renderDailyBook(); renderChallans(); renderCustomers(); renderFollowups(); renderProducts(); renderCompanies(); renderMonthly(); renderAging(); renderPayments(); updateCoSwitcher();
+  nav('dashboard'); toast('Reset to demo data','t-info');
+}
+
+// ═══ COMPANY SWITCHER ═══
+function updateCoSwitcher() {
+  const co = getActiveCompany();
+  const n = el('co-sw-name'); if(n) n.textContent = co ? co.name : '—';
+  const list = el('co-panel-list'); if(!list) return;
+  list.innerHTML = APP.companies.map(function(c){
+    return '<div class="co-item '+(c.id===APP.activeCompanyId?'aco':'')+'" onclick="switchCompany('+c.id+')">'+
+      '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+c.name+'</span>'+
+      (c.id===APP.activeCompanyId?'<i class="fas fa-check" style="color:#60a5fa;font-size:11px;flex-shrink:0"></i>':'')+
+    '</div>';
+  }).join('');
+}
+function toggleCoPanel() {
+  const panel = el('co-panel'), icon = el('co-sw-icon');
+  panel.classList.toggle('open');
+  if(icon) icon.style.transform = panel.classList.contains('open') ? 'rotate(180deg)' : '';
+}
+function closeCoPanel() {
+  const panel = el('co-panel'), icon = el('co-sw-icon');
+  if(panel){ panel.classList.remove('open'); }
+  if(icon) icon.style.transform='';
+}
+// ═══ COMPANIES PAGE ═══
+function renderCompanies() {
+  const cos = APP.companies;
+  const totalSales = cChallans().reduce(function(s,c){return s+c.total;},0);
+  const totalPaid  = cPayments().reduce(function(s,p){return s+p.amount;},0);
+  const totalOS    = cClients().reduce(function(s,cl){return s+Math.max(0,clientBalance(cl.id));},0);
+  const co = getActiveCompany();
+  const statsEl = el('co-stats');
+  if(statsEl) statsEl.innerHTML=
+    '<div class="stat-card"><div class="icon-box" style="background:#dbeafe"><i class="fas fa-building" style="color:#1d4ed8"></i></div><div><div class="stat-label">Active Company</div><div style="font-size:14px;font-weight:800;color:#0f172a;line-height:1.2;margin-top:2px">'+(co?co.name:'—')+'</div></div></div>'+
+    '<div class="stat-card"><div class="icon-box" style="background:#dcfce7"><i class="fas fa-rupee-sign" style="color:#15803d"></i></div><div><div class="stat-label">Total Sales</div><div class="stat-val">'+fmt(totalSales)+'</div></div></div>'+
+    '<div class="stat-card"><div class="icon-box" style="background:#ede9fe"><i class="fas fa-money-bill-wave" style="color:#6d28d9"></i></div><div><div class="stat-label">Collected</div><div class="stat-val" style="color:#15803d">'+fmt(totalPaid)+'</div></div></div>'+
+    '<div class="stat-card"><div class="icon-box" style="background:#fee2e2"><i class="fas fa-credit-card" style="color:#b91c1c"></i></div><div><div class="stat-label">Outstanding</div><div class="stat-val" style="color:#b91c1c">'+fmt(totalOS)+'</div></div></div>';
+
+  const listEl = el('co-list');
+  if(!listEl) return;
+  listEl.innerHTML = cos.map(function(c){
+    const isActive = c.id === APP.activeCompanyId;
+    return '<div class="card" style="margin-bottom:10px;border:'+(isActive?'2px solid #1d4ed8':'1px solid #e2e8f0')+'">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
+            '<div style="font-weight:700;font-size:15px">'+c.name+'</div>'+
+            (isActive?'<span class="badge badge-paid" style="font-size:10px">Active</span>':'')+
+          '</div>'+
+          '<div style="font-size:12px;color:#64748b">'+[c.proprietor,c.phone,c.gst].filter(Boolean).join(' · ')+'</div>'+
+          (c.address?'<div style="font-size:12px;color:#94a3b8;margin-top:2px">'+c.address+'</div>':'')+
+        '</div>'+
+        '<div style="display:flex;gap:6px;flex-shrink:0">'+
+          (!isActive?'<button class="btn btn-success btn-sm" onclick="switchCompany('+c.id+')">Switch</button>':'')+
+          '<button class="btn btn-ghost btn-sm" onclick="openEditCompanyModal('+c.id+')"><i class="fas fa-edit"></i></button>'+
+          (cos.length>1?'<button class="btn btn-danger btn-sm" onclick="deleteCompany('+c.id+')"><i class="fas fa-trash"></i></button>':'')+
+        '</div>'+
+      '</div></div>';
+  }).join('');
+}
+
+function openAddCompanyModal() {
+  closeCoPanel();
+  var html=
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div class="form-row" style="grid-column:1/-1"><label>Company Name *</label><input class="inp" id="nco-name" placeholder="e.g. My Textiles Pvt Ltd"></div>'+
+      '<div class="form-row"><label>Proprietor</label><input class="inp" id="nco-prop" placeholder="Owner name"></div>'+
+      '<div class="form-row"><label>Phone</label><input class="inp" id="nco-phone" placeholder="98765 00000"></div>'+
+      '<div class="form-row"><label>Email</label><input class="inp" id="nco-email" type="email" placeholder="email@company.com"></div>'+
+      '<div class="form-row"><label>GST No</label><input class="inp" id="nco-gst" placeholder="24AABCC1234F1Z5"></div>'+
+      '<div class="form-row" style="grid-column:1/-1"><label>Address</label><textarea class="inp" id="nco-addr" rows="2" placeholder="Full business address"></textarea></div>'+
+      '<div class="form-row" style="grid-column:1/-1"><label>Bank Details</label><input class="inp" id="nco-bank" placeholder="Bank Name — A/c XXXX — IFSC"></div>'+
+      '<div class="form-row"><label>Bill No. Prefix</label><input class="inp" id="nco-prefix" value="2526" style="width:120px"></div>'+
+    '</div>';
+  openModal('Add New Company', html, doAddCompany);
+}
+function doAddCompany() {
+  var name = el('nco-name').value.trim();
+  if(!name){ alert('Company name is required.'); return; }
+  var newId = APP.companies.length ? Math.max.apply(null, APP.companies.map(function(c){return c.id;})) + 1 : 1;
+  APP.companies.push({
+    id:newId, name:name,
+    proprietor:el('nco-prop').value.trim(),
+    phone:el('nco-phone').value.trim(),
+    email:el('nco-email').value.trim(),
+    gst:el('nco-gst').value.trim(),
+    address:el('nco-addr').value.trim(),
+    bank:el('nco-bank').value.trim(),
+    billPrefix:(el('nco-prefix').value.trim()||'2526')
+  });
+  APP.activeCompanyId = newId;
+  saveStore(); clearAllocCache(); closeModal();
+  updateCoSwitcher(); refreshAll();
+  toast('Company added & switched');
+}
+function openEditCompanyModal(existingId) {
+  var co = APP.companies.find(function(c){return c.id===existingId;}); if(!co) return;
+  var html=
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div class="form-row" style="grid-column:1/-1"><label>Company Name *</label><input class="inp" id="eco-name" value="'+co.name+'"></div>'+
+      '<div class="form-row"><label>Proprietor</label><input class="inp" id="eco-prop" value="'+(co.proprietor||'')+'"></div>'+
+      '<div class="form-row"><label>Phone</label><input class="inp" id="eco-phone" value="'+(co.phone||'')+'"></div>'+
+      '<div class="form-row"><label>Email</label><input class="inp" id="eco-email" value="'+(co.email||'')+'"></div>'+
+      '<div class="form-row"><label>GST No</label><input class="inp" id="eco-gst" value="'+(co.gst||'')+'"></div>'+
+      '<div class="form-row" style="grid-column:1/-1"><label>Address</label><textarea class="inp" id="eco-addr" rows="2">'+(co.address||'')+'</textarea></div>'+
+      '<div class="form-row" style="grid-column:1/-1"><label>Bank Details</label><input class="inp" id="eco-bank" value="'+(co.bank||'')+'"></div>'+
+      '<div class="form-row"><label>Bill No. Prefix</label><input class="inp" id="eco-prefix" value="'+(co.billPrefix||'2526')+'" style="width:120px"></div>'+
+      '<div class="form-row" style="grid-column:1/-1"><label>Company Logo</label>'+
+        (co.logoPath||co.logo?'<img src="'+(co.logoPath||co.logo)+'" style="height:40px;object-fit:contain;display:block;margin-bottom:8px">':'')+
+        '<input class="inp" type="file" accept="image/png,image/jpeg,image/webp" onchange="uploadCompanyLogo('+existingId+',this)">'+
+        '<div style="font-size:11px;color:#94a3b8;margin-top:4px">PNG/JPG/WebP, max 500 KB</div></div>'+
+    '</div>';
+  openModal('Edit Company — '+co.name, html, function(){saveCompanyEdit(existingId);});
+}
+function saveCompanyEdit(existingId) {
+  var name = el('eco-name').value.trim();
+  if(!name){ alert('Company name is required.'); return; }
+  var idx = APP.companies.findIndex(function(c){return c.id===existingId;});
+  if(idx<0) return;
+  APP.companies[idx] = {
+    id:existingId, name:name,
+    proprietor:el('eco-prop').value.trim(),
+    phone:el('eco-phone').value.trim(),
+    email:el('eco-email').value.trim(),
+    gst:el('eco-gst').value.trim(),
+    address:el('eco-addr').value.trim(),
+    bank:el('eco-bank').value.trim(),
+    billPrefix:(el('eco-prefix').value.trim()||'2526')
+  };
+  saveStore(); closeModal();
+  updateCoSwitcher(); renderCompanies();
+  toast('Company details saved');
+}
+function deleteCompany(id) {
+  if(APP.companies.length<=1){ toast('Cannot delete the only company','t-del'); return; }
+  if(!confirm('Delete this company? All its clients, challans, and payments will also be deleted.')) return;
+  APP.companies = APP.companies.filter(function(c){return c.id!==id;});
+  APP.clients   = APP.clients.filter(function(c){return c.companyId!==id;});
+  APP.challans  = APP.challans.filter(function(c){return c.companyId!==id;});
+  APP.payments  = APP.payments.filter(function(p){return p.companyId!==id;});
+  APP.products  = APP.products.filter(function(p){return p.companyId!==id;});
+  if(APP.activeCompanyId===id) APP.activeCompanyId = APP.companies[0].id;
+  clearAllocCache(); saveStore();
+  updateCoSwitcher(); refreshAll();
+  toast('Company deleted','t-del');
+}
+
+// ═══ CUSTOMER DETAIL PAGE ═══
+var currentClientId = null, lastPageBeforeDetail = 'customers';
+function openCustomerDetail(clientId, fromPage) {
+  currentClientId = clientId;
+  lastPageBeforeDetail = fromPage || 'customers';
+  nav('customer-detail');
+}
+function goBackFromDetail() {
+  nav(lastPageBeforeDetail);
+}
+function renderCustomerDetail() {
+  if(!currentClientId) return;
+  var cl = APP.clients.find(function(c){return c.id===currentClientId;}); if(!cl) return;
+  var s = clientStats(cl.id);
+  var r = riskLevel(s.oldest, s.os);
+  var hdr = el('cd-hdr-card');
+  if(hdr) hdr.innerHTML=
+    '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">'+
+      '<div>'+
+        '<div style="font-size:18px;font-weight:800">'+cl.name+'</div>'+
+        '<div style="font-size:12px;opacity:.7;margin-top:3px">'+[cl.phone,cl.gst,cl.address].filter(Boolean).join(' · ')+'</div>'+
+      '</div>'+
+      '<span class="badge '+r.cls+'">'+r.label+'</span>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'+
+      '<div style="background:rgba(255,255,255,.08);border-radius:8px;padding:10px"><div style="font-size:10px;opacity:.6;margin-bottom:3px">Total Sales</div><div style="font-size:16px;font-weight:800">'+fmt(s.totalSales)+'</div></div>'+
+      '<div style="background:rgba(255,255,255,.08);border-radius:8px;padding:10px"><div style="font-size:10px;opacity:.6;margin-bottom:3px">Paid</div><div style="font-size:16px;font-weight:800;color:#4ade80">'+fmt(s.totalPaid)+'</div></div>'+
+      '<div style="background:rgba(255,255,255,.08);border-radius:8px;padding:10px"><div style="font-size:10px;opacity:.6;margin-bottom:3px">Outstanding</div><div style="font-size:16px;font-weight:800;color:'+(s.os>0?'#f87171':'#4ade80')+'">'+fmt(s.os)+'</div></div>'+
+      '<div style="background:rgba(255,255,255,.08);border-radius:8px;padding:10px"><div style="font-size:10px;opacity:.6;margin-bottom:3px">Oldest Pending</div><div style="font-size:16px;font-weight:800;color:'+(s.oldest>60?'#f87171':s.oldest>30?'#fbbf24':'#e2e8f0')+'">'+(s.oldest>0?s.oldest+'d':'—')+'</div></div>'+
+    '</div>';
+  showCdTab('overview');
+}
+function showCdTab(tab) {
+  var tabs = el('cd-tabs');
+  if(tabs) tabs.querySelectorAll('.cd-tab').forEach(function(t,i){
+    t.classList.toggle('active', ['overview','challans','payments','ledger'][i]===tab);
+  });
+  ['overview','challans','payments','ledger'].forEach(function(t){
+    var p=el('cdp-'+t); if(p) p.classList.toggle('active',t===tab);
+  });
+  if(!currentClientId) return;
+  if(tab==='overview') renderCdOverview();
+  else if(tab==='challans') renderCdChallans();
+  else if(tab==='payments') renderCdPayments();
+  else if(tab==='ledger') renderCdLedger();
+}
+function renderCdOverview() {
+  var cId = currentClientId;
+  var pending = APP.challans.filter(function(c){return c.clientId===cId&&outstanding(c)>0;}).sort(function(a,b){return new Date(a.date)-new Date(b.date);});
+  var recent  = APP.challans.filter(function(c){return c.clientId===cId;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);}).slice(0,5);
+  var recentPmts = APP.payments.filter(function(p){return p.clientId===cId;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);}).slice(0,5);
+  var html='';
+  if(pending.length){
+    html+='<div class="card" style="margin-bottom:14px"><div style="font-weight:700;font-size:13px;color:#b91c1c;margin-bottom:10px"><i class="fas fa-exclamation-circle" style="margin-right:5px"></i>Pending Dues — FIFO Order</div>'+
+      '<div style="overflow-x:auto"><table><thead><tr><th>Bill No</th><th>Date</th><th>Total</th><th>Outstanding</th><th>Age</th><th>Status</th><th></th></tr></thead><tbody>'+
+      pending.map(function(c){var os=outstanding(c),d=daysOld(c.date);return '<tr><td><strong style="color:#1d4ed8;cursor:pointer" onclick="openChallanView(\''+c.id+'\')">'+c.billNo+'</strong></td><td>'+fmtD(c.date)+'</td><td>'+fmt(c.total)+'</td><td style="font-weight:800;color:#b91c1c">'+fmt(os)+'</td><td style="color:'+(d>60?'#dc2626':d>30?'#d97706':'#334155')+';font-weight:600">'+d+'d</td><td><span class="badge badge-'+challanStatus(c)+'">'+challanStatus(c)+'</span></td><td><button class="btn btn-success btn-sm" onclick="openPaymentModal('+cId+')"><i class="fas fa-rupee-sign"></i></button></td></tr>';}).join('')+
+      '</tbody></table></div></div>';
+  }
+  if(recent.length){
+    html+='<div class="grid-2"><div class="card"><div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:10px">Recent Challans</div>'+
+      recent.map(function(c){return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1f5f9"><div><div style="font-size:13px;font-weight:700;color:#1d4ed8;cursor:pointer" onclick="openChallanView(\''+c.id+'\')">'+c.billNo+'</div><div style="font-size:11px;color:#94a3b8">'+fmtD(c.date)+'</div></div><div style="text-align:right"><div style="font-weight:700">'+fmt(c.total)+'</div><span class="badge badge-'+challanStatus(c)+'" style="font-size:10px">'+challanStatus(c)+'</span></div></div>';}).join('')+
+      '</div>'+
+      '<div class="card"><div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:10px">Recent Payments</div>'+
+      (recentPmts.length?recentPmts.map(function(p){return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1f5f9"><div><div style="font-size:13px;font-weight:700;color:#15803d">'+fmt(p.amount)+'</div><div style="font-size:11px;color:#94a3b8">'+fmtD(p.date)+'</div></div><span class="badge badge-'+p.mode+'">'+p.mode.toUpperCase()+'</span></div>';}).join(''):
+      '<div style="text-align:center;padding:20px;color:#94a3b8;font-size:13px">No payments yet</div>')+
+      '</div></div>';
+  }
+  if(!html) html='<div style="text-align:center;padding:40px;color:#94a3b8"><i class="fas fa-user" style="font-size:32px;display:block;margin-bottom:10px"></i>No transactions yet</div>';
+  var pane=el('cdp-overview'); if(pane) pane.innerHTML=html;
+}
+function renderCdChallans() {
+  var list = APP.challans.filter(function(c){return c.clientId===currentClientId;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+  var pane=el('cdp-challans'); if(!pane) return;
+  pane.innerHTML = list.length ?
+    '<div class="card"><div style="overflow-x:auto"><table><thead><tr><th>Bill No</th><th>Date</th><th>Items</th><th>Total</th><th>Paid</th><th>Outstanding</th><th>Mode</th><th>Age</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+list.map(function(c){return challanTR(c,true);}).join('')+'</tbody></table></div></div>':
+    '<div class="card"><div style="text-align:center;padding:36px;color:#94a3b8">No challans for this client</div></div>';
+}
+function renderCdPayments() {
+  var list = APP.payments.filter(function(p){return p.clientId===currentClientId;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+  var pane=el('cdp-payments'); if(!pane) return;
+  pane.innerHTML = '<div class="card" style="margin-bottom:12px">'+
+    '<div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:10px">'+
+      '<button class="btn btn-success btn-sm" onclick="openPaymentModal('+currentClientId+')"><i class="fas fa-rupee-sign" style="margin-right:4px"></i>Record Payment</button>'+
+    '</div>'+
+    (list.length ?
+      '<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Amount</th><th>Mode</th><th>Note</th><th></th></tr></thead><tbody>'+
+      list.map(function(p){return '<tr><td>'+fmtD(p.date)+'</td><td style="font-weight:700;color:#15803d">'+fmt(p.amount)+'</td><td><span class="badge badge-'+p.mode+'">'+p.mode.toUpperCase()+'</span></td><td style="color:#64748b;font-size:12px">'+(p.note||'—')+'</td><td><div style="display:flex;gap:4px"><button class="btn btn-ghost btn-sm" onclick="openEditPaymentModal(\''+p.id+'\')"><i class="fas fa-edit"></i></button><button class="btn btn-danger btn-sm" onclick="deletePayment(\''+p.id+'\')"><i class="fas fa-trash"></i></button></div></td></tr>';}).join('')+
+      '</tbody></table></div>' :
+      '<div style="text-align:center;padding:30px;color:#94a3b8">No payments recorded</div>')+
+    '</div>';
+}
+function renderCdLedger() {
+  var cId = currentClientId;
+  var pane=el('cdp-ledger'); if(!pane) return;
+  var events=[];
+  APP.challans.filter(function(c){return c.clientId===cId&&c.mode==='credit';}).forEach(function(c){
+    events.push({date:c.date,type:'sale',amount:c.total,ref:c.billNo,desc:c.items.map(function(i){return i.name;}).join(', '),id:c.id});
+  });
+  APP.payments.filter(function(p){return p.clientId===cId;}).forEach(function(p){
+    events.push({date:p.date,type:'payment',amount:p.amount,ref:'PMT',desc:p.note||'Payment received',mode:p.mode});
+  });
+  events.sort(function(a,b){return new Date(a.date)-new Date(b.date)||(a.type==='payment'?1:-1);});
+  var bal=clientBalance(cId);
+  var totalDebit=events.filter(function(e){return e.type==='sale';}).reduce(function(s,e){return s+e.amount;},0);
+  var totalCredit=events.filter(function(e){return e.type==='payment';}).reduce(function(s,e){return s+e.amount;},0);
+  function balLabel(v) {
+    if(v===0) return {
+      text:'NIL',
+      color:'#475569',
+      badge:'<span style="display:inline-block;margin-left:5px;font-size:9px;font-weight:800;padding:1px 5px;border:1px solid #94a3b8;border-radius:3px;color:#475569;letter-spacing:.04em">CLEAR</span>',
+      sub:''
+    };
+    if(v>0) return {
+      text:fmt(v),
+      color:'#b91c1c',
+      badge:'<span style="display:inline-block;margin-left:5px;font-size:9px;font-weight:800;padding:1px 5px;border:1.5px solid #b91c1c;border-radius:3px;color:#b91c1c;letter-spacing:.04em">TO COLLECT</span>',
+      sub:''
+    };
+    return {
+      text:'('+fmt(Math.abs(v))+')',
+      color:'#15803d',
+      badge:'<span style="display:inline-block;margin-left:5px;font-size:9px;font-weight:800;padding:1px 5px;border:1.5px solid #15803d;border-radius:3px;color:#15803d;letter-spacing:.04em">ADVANCE</span>',
+      sub:''
+    };
+  }
+  var running=0;
+  var rows=events.map(function(e){
+    var bl;
+    if(e.type==='sale'){
+      running+=e.amount; bl=balLabel(running);
+      return '<tr><td>'+fmtD(e.date)+'</td>'+
+        '<td><strong style="color:#1d4ed8;cursor:pointer" onclick="openChallanView(\''+e.id+'\')">'+e.ref+'</strong><br><span style="font-size:11px;color:#94a3b8">'+e.desc+'</span></td>'+
+        '<td style="color:#b91c1c;font-weight:700">'+fmt(e.amount)+'</td>'+
+        '<td style="color:#94a3b8">—</td>'+
+        '<td style="font-weight:800;color:'+bl.color+'">'+bl.text+bl.badge+'</td></tr>';
+    } else {
+      running-=e.amount; bl=balLabel(running);
+      return '<tr style="background:#f0fdf4"><td>'+fmtD(e.date)+'</td>'+
+        '<td><span style="color:#15803d;font-weight:700">Payment</span><br><span style="font-size:11px;color:#64748b">'+e.desc+(e.mode?' <span class="badge badge-'+e.mode+'" style="font-size:10px">'+e.mode.toUpperCase()+'</span>':'')+'</span></td>'+
+        '<td style="color:#94a3b8">—</td>'+
+        '<td style="color:#15803d;font-weight:700">'+fmt(e.amount)+'</td>'+
+        '<td style="font-weight:800;color:'+bl.color+'">'+bl.text+bl.badge+'</td></tr>';
+    }
+  }).join('');
+  var closingBl=balLabel(bal);
+  var totalRow='<tr style="background:#0f172a;color:#fff;font-weight:800">'+
+    '<td style="padding:11px 13px;font-size:12px;text-transform:uppercase;letter-spacing:.04em" colspan="2">Total</td>'+
+    '<td style="padding:11px 13px;color:#fca5a5;font-size:14px">'+fmt(totalDebit)+'</td>'+
+    '<td style="padding:11px 13px;color:#4ade80;font-size:14px">'+fmt(totalCredit)+'</td>'+
+    '<td style="padding:11px 13px;font-size:14px;color:'+closingBl.color+'">'+closingBl.text+
+      '<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:800;padding:1px 5px;border:1.5px solid currentColor;border-radius:3px;letter-spacing:.04em">'+(bal>0?'TO COLLECT':bal<0?'ADVANCE':'CLEAR')+'</span>'+
+    '</td>'+
+  '</tr>';
+  pane.innerHTML='<div class="card">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">'+
+      '<div style="font-weight:700;font-size:13px;color:#0f172a">Account Statement</div>'+
+      '<div style="display:flex;gap:8px">'+
+        '<button class="btn" style="background:#dc5800;color:#fff;font-size:12px;padding:6px 12px" onclick="downloadLedgerPDF('+cId+')"><i class="fas fa-file-pdf" style="margin-right:4px"></i>Download PDF</button>'+
+        '<button class="btn btn-success btn-sm" onclick="openPaymentModal('+cId+')"><i class="fas fa-rupee-sign" style="margin-right:4px"></i>Record Payment</button>'+
+      '</div>'+
+    '</div>'+
+    (events.length?'<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Particulars</th><th style="color:#b91c1c">Debit (Sales)</th><th style="color:#15803d">Credit (Payments)</th><th>Balance</th></tr></thead><tbody>'+rows+'</tbody><tfoot>'+totalRow+'</tfoot></table></div>':
+    '<div style="text-align:center;padding:30px;color:#94a3b8">No credit transactions yet.</div>')+
+    '</div>';
+}
+
+// ═══ FOLLOW-UPS PAGE ═══
+function renderFollowups() {
+  var clients = cClients().map(function(cl){
+    var s = clientStats(cl.id);
+    var r = riskLevel(s.oldest, s.os);
+    return {cl:cl, s:s, r:r};
+  }).filter(function(x){return x.s.os>0;});
+
+  clients.sort(function(a,b){
+    var order={Critical:0,High:1,Medium:2,Low:3};
+    return (order[a.r.label]||4)-(order[b.r.label]||4)||(b.s.os-a.s.os);
+  });
+
+  var totalOS = clients.reduce(function(s,x){return s+x.s.os;},0);
+  var critical = clients.filter(function(x){return x.r.label==='Critical';}).length;
+  var high     = clients.filter(function(x){return x.r.label==='High';}).length;
+
+  var statsEl = el('fu-stats');
+  if(statsEl) statsEl.innerHTML=
+    '<div class="stat-card"><div class="icon-box" style="background:#fee2e2"><i class="fas fa-rupee-sign" style="color:#b91c1c"></i></div><div><div class="stat-label">Total Outstanding</div><div class="stat-val" style="color:#b91c1c">'+fmt(totalOS)+'</div><div class="stat-hint">'+clients.length+' clients</div></div></div>'+
+    '<div class="stat-card"><div class="icon-box" style="background:#450a0a"><i class="fas fa-skull" style="color:#fca5a5"></i></div><div><div class="stat-label">Critical (90+ days)</div><div class="stat-val" style="color:#7f1d1d">'+critical+'</div><div class="stat-hint">Immediate action</div></div></div>'+
+    '<div class="stat-card"><div class="icon-box" style="background:#fee2e2"><i class="fas fa-exclamation-triangle" style="color:#dc2626"></i></div><div><div class="stat-label">High Risk (61-90d)</div><div class="stat-val" style="color:#dc2626">'+high+'</div><div class="stat-hint">Urgent follow-up</div></div></div>';
+
+  var fuCnt=el('nav-fu-cnt');
+  if(fuCnt){fuCnt.textContent=clients.length;fuCnt.style.display=clients.length?'':'none';}
+
+  var listEl=el('fu-list');
+  if(!listEl) return;
+  if(!clients.length){ listEl.innerHTML='<div class="card" style="text-align:center;padding:40px"><i class="fas fa-check-circle" style="font-size:36px;color:#22c55e;display:block;margin-bottom:10px"></i><div style="font-weight:700;color:#0f172a;font-size:16px">All Clear!</div><div style="color:#94a3b8;margin-top:5px">No outstanding dues from any client.</div></div>'; return; }
+
+  var riskCls={Critical:'rc',High:'rh',Medium:'rm',Low:'rl'};
+  listEl.innerHTML = clients.map(function(x){
+    var cl=x.cl, s=x.s, r=x.r;
+    var laD = cl.lastAsked ? daysOld(cl.lastAsked) : null;
+    return '<div class="fu-card '+riskCls[r.label]+'">'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
+          '<div style="font-weight:700;font-size:14px;cursor:pointer;color:#0f172a" onclick="openCustomerDetail('+cl.id+',\'followups\')">'+cl.name+'</div>'+
+          '<span class="badge '+r.cls+'">'+r.label+'</span>'+
+        '</div>'+
+        '<div style="font-size:12px;color:#64748b">Outstanding: <strong style="color:#b91c1c">'+fmt(s.os)+'</strong> · Oldest: <strong>'+s.oldest+'d</strong> · Last asked: <strong>'+(laD!==null?laD+'d ago':'<span style="color:#b91c1c">Never!</span>')+'</strong></div>'+
+      '</div>'+
+      '<div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">'+
+        '<button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="openCustomerDetail('+cl.id+',\'followups\')">View</button>'+
+        '<button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="markAskedToday('+cl.id+')" title="Mark asked today"><i class="fas fa-phone" style="margin-right:3px"></i>Asked</button>'+
+        '<button class="btn btn-success btn-sm" style="font-size:11px" onclick="openPaymentModal('+cl.id+')"><i class="fas fa-rupee-sign" style="margin-right:3px"></i>Pay</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+// ═══ BOTTOM NAV MOBILE ═══
+function toggleMobileMore() {
+  el('bn-more').classList.toggle('open');
+  el('bn-ov').classList.toggle('open');
+}
+function closeMobileMore() {
+  el('bn-more').classList.remove('open');
+  el('bn-ov').classList.remove('open');
+}
+
+// ═══ REFRESH ALL ═══
+function refreshAll() {
+  clearAllocCache();
+  populateClientSelects();
+  renderDashboard();
+  renderDailyBook();
+  renderChallans();
+  renderCustomers();
+  renderFollowups();
+  renderProducts();
+  renderCompanies();
+  renderMonthly();
+  renderAging();
+  renderPayments();
+  updateCoSwitcher();
+}
+
+// ═══════════════════════════════════════════════
+//  DELIVERY CHALLAN PRINT TEMPLATE
+// ═══════════════════════════════════════════════
+function closeChallanPrint(){
+  var ov=el('cp-ov'); if(ov) ov.classList.remove('open');
+}
+
+function _buildChallanHalf(ch, client, co){
+  // Company initials (skip Pvt/Ltd)
+  var words=(co.name||'').replace(/pvt\.?|ltd\.?|private|limited/gi,'').trim().split(/\s+/).filter(Boolean);
+  var initials=words.slice(0,2).map(function(w){return (w[0]||'').toUpperCase();}).join('');
+  if(!initials) initials='C';
+
+  var city=co.city||'Local';
+  if(!co.city&&co.address){
+    var ap=co.address.split(',');
+    var last=(ap[ap.length-1]||'').replace(/\d/g,'').trim();
+    if(last) city=last;
+  }
+
+  // Field values
+  var billNo   = ch ? esc(ch.billNo||'')   : '';
+  var billDate = ch ? esc(fmtD(ch.date))   : '';
+  var toName   = client ? esc(client.name||'')    : '';
+  var toAddr   = client ? esc(client.address||'') : '';
+  var toPhone  = client ? esc(client.phone||'')   : '';
+
+  // Rows — stretch to fill page via flex+height:1px trick
+  var items=(ch&&ch.items)?ch.items:[];
+  var MIN_ROWS=12, rowHTML='', grandTotal=0;
+  var totalRows=Math.max(MIN_ROWS, items.length);
+  for(var i=0;i<totalRows;i++){
+    var it=items[i]||null;
+    if(it){
+      grandTotal+=(it.lt||0);
+      rowHTML+='<tr>'+
+        '<td class="tc">'+(i+1)+'</td>'+
+        '<td class="tl" contenteditable="true">'+esc(it.name)+(it.size?' — '+esc(it.size):'')+'</td>'+
+        '<td class="tr" contenteditable="true">'+esc(String(it.qty))+'</td>'+
+        '<td class="tc" contenteditable="true">'+esc(it.unit||'')+'</td>'+
+        '<td class="tr" contenteditable="true">'+fmtPdf(it.price)+'</td>'+
+        '<td class="tr" contenteditable="true">'+fmtPdf(it.lt)+'</td>'+
+      '</tr>';
+    } else {
+      rowHTML+='<tr>'+
+        '<td class="tc" style="height:26px"></td>'+
+        '<td contenteditable="true"></td>'+
+        '<td contenteditable="true"></td>'+
+        '<td contenteditable="true"></td>'+
+        '<td contenteditable="true"></td>'+
+        '<td contenteditable="true"></td>'+
+      '</tr>';
+    }
+  }
+
+  // Black address bar
+  var addrBar=esc(formatCompanyAddress(co)||co.address||'');
+  var mob=co.mobile||co.phone||'';
+  var gst=co.gstin||co.gst||'';
+  if(mob) addrBar+='&nbsp;&nbsp;M : '+esc(mob);
+  if(gst) addrBar+='&nbsp;&nbsp;GSTIN : '+esc(gst);
+
+  return '<div class="cph">'+
+    // Religious text + DELIVERY CHALLAN label
+    '<div class="cph-top">'+
+      '<div class="cph-reli">&#2404;&#2404; &#2358;&#2381;&#2352;&#2368; &#2327;&#2339;&#2375;&#2358;&#2366;&#2351; &#2344;&#2350;&#2307; &#2404;&#2404;</div>'+
+      '<div class="cph-dlabel">DELIVERY CHALLAN</div>'+
+    '</div>'+
+    // Logo circle + company name + type
+    '<div class="cph-logo-row">'+
+      renderCompanyLogo(co,50)+
+      '<div>'+
+        '<div class="cph-nm">'+esc(co.name)+'</div>'+
+        '<div class="cph-type">'+esc(co.tagline||'')+'</div>'+
+      '</div>'+
+    '</div>'+
+    // Black address bar
+    '<div class="cph-addr-bar">'+addrBar+'</div>'+
+    // BORDERED To: box (Riddhi Steel style)
+    '<div class="cph-billto">'+
+      '<div class="cph-to">'+
+        '<div class="cph-to-lbl">To,</div>'+
+        '<input class="cph-to-inp" value="'+toName+'" placeholder="Party name…"/>'+
+        '<input class="cph-to-inp" value="'+toAddr+'" placeholder="Address…"/>'+
+        '<input class="cph-to-inp" value="'+toPhone+'" placeholder="Phone…"/>'+
+      '</div>'+
+      '<div class="cph-refs">'+
+        '<div class="cph-ref"><span class="cph-rl">D.C. No. :</span><input class="cph-rv" value="'+billNo+'"/></div>'+
+        '<div class="cph-ref"><span class="cph-rl">Date :</span><input class="cph-rv" value="'+billDate+'"/></div>'+
+        '<div class="cph-ref"><span class="cph-rl">Bill No. :</span><input class="cph-rv" value="'+billNo+'"/></div>'+
+      '</div>'+
+    '</div>'+
+    // Items table fills remaining height via flex:1
+    '<div class="cph-tbl-wrap">'+
+      '<div class="cph-wm">'+esc(initials)+'</div>'+
+      '<table class="cph-tbl">'+
+        '<colgroup>'+
+          '<col style="width:5%">'+
+          '<col style="width:46%">'+
+          '<col style="width:7%">'+
+          '<col style="width:8%">'+
+          '<col style="width:16%">'+
+          '<col style="width:18%">'+
+        '</colgroup>'+
+        '<thead><tr>'+
+          '<th>NO.</th>'+
+          '<th class="tl">DESCRIPTION</th>'+
+          '<th>QTY</th><th>UNIT</th><th>RATE</th><th>AMOUNT</th>'+
+        '</tr></thead>'+
+        '<tbody>'+rowHTML+'</tbody>'+
+        '<tfoot>'+
+          '<tr class="cph-notes-row">'+
+            '<td colspan="6" contenteditable="true"></td>'+
+          '</tr>'+
+          '<tr>'+
+            '<td colspan="5" class="tr" style="padding:5px 6px">TOTAL</td>'+
+            '<td class="tr" style="padding:5px 6px">'+(grandTotal>0?fmtPdf(grandTotal):'')+'</td>'+
+          '</tr>'+
+        '</tfoot>'+
+      '</table>'+
+    '</div>'+
+    // GSTIN sits between table wrapper and footer
+    (gst?'<div class="cph-gstin">GSTIN : '+esc(gst)+'</div>':'')+
+    '<div class="cph-foot">'+
+      '<div class="cph-foot-l">'+
+        '<div class="cph-terms">'+(co.footerText?esc(co.footerText):'&#8226; Goods once sold will not be taken back or exchanged.&nbsp;E.&amp;O.E<br>&#8226; Subject to '+esc(city)+' Jurisdiction')+'</div>'+
+        '<div class="cph-rcv">Receiver\'s Signature ________________________________</div>'+
+      '</div>'+
+      '<div class="cph-foot-r"><div class="cph-for">For, '+esc(co.name)+'</div>'+(co.authorizedSignatory||co.proprietor?'<div style="font-size:9pt;text-align:right;margin-top:4px">'+esc(co.authorizedSignatory||co.proprietor)+'</div>':'')+'</div>'+
+    '</div>'+
+  '</div>';
+}
+
+function printDeliveryChallan(id){
+  var ch=APP.challans.find(function(c){return c.id===id;});
+  if(!ch){ toast('Challan not found','t-del'); return; }
+  var client=APP.clients.find(function(c){return c.id===ch.clientId;});
+  var co=getCompanyForChallan(ch);
+  applyCompanyTheme(co);
+  el('cp-sheet').innerHTML=_buildChallanHalf(ch,client,co);
+  var ref=el('cp-ref');
+  if(ref) ref.textContent='Bill: '+ch.billNo+' — '+(client?client.name:'—');
+  var ov=el('cp-ov');
+  ov.classList.add('open');
+  ov.scrollTop=0;
+}
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded',async function(){
+  if(!await checkAuth())return;
+  await loadStore();
+  el('cur-date').textContent=new Date(TODAY).toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  populateClientSelects();
+  updateCoSwitcher();
+  renderDashboard();
+  renderDailyBook();
+  renderChallans();
+  renderCustomers();
+  renderFollowups();
+  renderProducts();
+  renderCompanies();
+  renderMonthly();
+  renderAging();
+  renderPayments();
+  setupAdminUI();
+  if (CURRENT_USER?.role === 'admin') {
+    const bnUsers = el('bn-users');
+    if (bnUsers) bnUsers.style.display = '';
+  }
+  nav('dashboard');
+});
+</script>
+<script src="/js/patches.js"></script>
+<script src="/js/admin.js"></script>
+<!-- ═══ DELIVERY CHALLAN PRINT OVERLAY ═══ -->
+<div id="cp-ov">
+  <div class="cp-bar">
+    <span class="cp-bar-title"><i class="fas fa-file-invoice" style="margin-right:7px;color:#60a5fa"></i><span id="cp-ref">Delivery Challan</span></span>
+    <button class="btn" style="background:#16a34a;color:#fff;font-size:12px;padding:7px 14px" onclick="window.print()"><i class="fas fa-print" style="margin-right:5px"></i>Print (A5)</button>
+    <button class="btn btn-ghost" style="color:#e2e8f0;border:1px solid #334155;font-size:12px;padding:7px 14px" onclick="closeChallanPrint()"><i class="fas fa-times" style="margin-right:5px"></i>Close</button>
+  </div>
+  <div class="cp-sheet" id="cp-sheet"></div>
+  <div class="cp-hint" style="color:#fde68a;font-size:11px;margin-top:12px;text-align:center;max-width:580px;line-height:1.5">
+    <i class="fas fa-info-circle" style="margin-right:5px"></i>
+    <strong>In the browser print dialog:</strong> set <em>Margins → None</em> and uncheck <em>Headers &amp; Footers</em> — then challan fills the full page edge-to-edge on any paper size (A4, A5, etc.)
+    &nbsp;·&nbsp; Click any field to edit before printing
+  </div>
+</div>
+
+<div id="toast-wrap"></div>
+</body>
+</html>
