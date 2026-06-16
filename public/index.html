@@ -2807,7 +2807,7 @@ function _buildChallanHalf(ch, client, co){
               '<tr><td colspan="5" class="tr" style="padding:4px 6px;font-size:9pt;font-weight:600">SGST @ 9%</td><td class="tr" style="padding:4px 6px;font-size:9pt">&#8377;'+fmtPdf(sgst)+'</td></tr>';
           }
           return '<tfoot>'+
-            '<tr class="cph-notes-row"><td colspan="6" contenteditable="true"'+(gstEnabled?' style="height:45px"':'')+'></td></tr>'+
+            '<tr class="cph-notes-row"><td colspan="6" contenteditable="true"'+(gstEnabled?' style="height:45px"':'')+'>'+(ch&&ch.notes?esc(ch.notes):'')+'</td></tr>'+
             gstRows+
             '<tr><td colspan="5" class="tr" style="padding:5px 6px">TOTAL</td><td class="tr" style="padding:5px 6px">'+(displayTotal>0?'&#8377;'+fmtPdf(displayTotal):'')+'</td></tr>'+
           '</tfoot>';
