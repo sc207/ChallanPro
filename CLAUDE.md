@@ -30,41 +30,50 @@ Copy `.env.example` to `.env` and fill in:
 - `SMTP_USER` / `SMTP_APP_PASSWORD` — Gmail with App Password enabled
 - Leave `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` empty for local SQLite (creates `data/challan.db`)
 
-If SMTP creds are missing, OTPs are printed to the console (dev fallback).
+If SMTP creds are missing, OTPs are printed to the console (dev fallback). All env vars are centralized in `server/config.js`.
 
 ## Architecture
 
 **Backend** — Express.js, split into routes → services → db layers:
 
-- `server/index.js` — app entry: middleware stack (Helmet, CORS, rate limiter, JWT cookie parser), mounts all routes under `/api/`
+- `server/index.js` — app entry: middleware stack (Helmet, CORS, rate limiter, JWT cookie parser), mounts all routes under `/api/`, health check at `/health`, admin-only `/api/backup/export` and `/api/backup/import` endpoints
+- `server/config.js` — single source of truth for all env vars; import this instead of `process.env` directly
 - `server/routes/` — one file per resource (auth, companies, clients, products, challans, payments, users, activity, settings)
-- `server/middleware/auth.js` — `authenticateToken` (JWT from httpOnly cookie), `requireRole('admin')`, `requireCompanyId`
+- `server/middleware/auth.js` — `authenticateToken` (JWT from httpOnly cookie), `requireRole('admin')`, `signToken(user)`
+- `server/utils/mappers.js` — converts SQLite snake_case rows to camelCase objects; also exports `requireCompanyId` middleware (extracts `companyId` from query or body)
 - `server/services/` — `audit.js` (logAudit/formatActivity), `billNumber.js` (financial year + auto-increment), `mailer.js` (SMTP/fallback), `otp.js` (in-memory store, 10-min TTL)
-- `server/db/connection.js` — abstracts better-sqlite3 (local) vs @libsql/client (Turso/production); exposes `db.prepare()` compatible API
-- `server/db/schema.sql` — single static DDL file; no migration versioning
-- `server/utils/mappers.js` — converts SQLite snake_case rows to camelCase objects
+- `server/db/connection.js` — abstracts better-sqlite3 (local) vs @libsql/client (Turso/production); **do not call SQLite APIs directly** — use the exported helpers: `queryAll(sql, params)`, `queryOne(sql, params)`, `run(sql, params)`
+- `server/db/schema.sql` — single static DDL file; no migration versioning. Schema is applied automatically on server start if the `companies` table doesn't exist yet.
 
 **Frontend** — Vanilla JS SPA in `public/`:
 
 - `public/index.html` — single shell page with all section divs toggled by JS
-- `public/js/api.js` — thin fetch wrapper with GET/POST/PUT/DELETE helpers (always sends JSON, returns parsed body)
-- `public/js/data.js` — global `APP` state object; `loadCompanyData(id)` hydrates all resources for the active company
-- `public/js/branding.js` — applies `primary_color`/`secondary_color` as CSS variables per company
+- `public/js/api.js` — thin fetch wrapper with GET/POST/PUT/DELETE helpers (always sends JSON, returns parsed body; redirects to `/login.html` on 401)
+- `public/js/data.js` — global `APP` state object; `loadCompanyData(id)` hydrates all resources for the active company; `persistClient/Product/Challan/Payment()` handles POST-vs-PUT routing
+- `public/js/branding.js` — applies `primary_color`/`secondary_color` as CSS variables per company; `renderCompanyLogo()` renders image or initials placeholder
 - `public/js/admin.js` — user management UI + activity feed (admin-only)
+- `public/js/patches.js` — browser polyfills / minor UI patches
 
 **Database** — SQLite with 8 tables: `companies`, `clients`, `products`, `challans`, `payments`, `users`, `audit_logs`, `app_settings`. All tables use `is_deleted INTEGER DEFAULT 0` for soft deletes. Foreign keys are enabled.
 
+Notable schema details:
+- `challans.items_json` — LINE items stored as a serialized JSON array, parsed by `mapChallan()`
+- `challans.id` and `payments.id` are TEXT (UUIDs); `clients`, `products`, `users` use INTEGER AUTOINCREMENT
+- `mappers.js` preserves legacy field aliases (e.g. `phone`/`gst`/`proprietor`/`billPrefix`/`logo`) for backward compatibility with older frontend code — keep them when updating mappers
+
 ## Key Domain Concepts
 
-**Challans** are delivery notes. Lifecycle: `draft` → `confirmed` (assigns bill number) → `cancelled`. Bill numbers use the format `{financial_year}/{padded_seq}` (e.g. `2526/001`) and auto-increment per company.
+**Challans** are delivery notes. Lifecycle: `draft` → `confirmed` (assigns bill number) → `cancelled`. Bill numbers use `{financial_year}/{padded_seq}` (e.g. `2526/001` = FY 2025-26, first bill). `assignBillNumber()` atomically increments `companies.next_bill_number`.
 
 **Payments** are recorded against a client, not a specific challan. Outstanding balance is computed frontend-side from challan totals minus payment sums per client.
 
-**Multi-company**: every resource (clients, products, challans, payments) is scoped to a `company_id`. The active company is stored in `app_settings` and sent with every API request.
+**Multi-company**: every resource (clients, products, challans, payments) is scoped to a `company_id`. The active company is stored in `app_settings` and sent with every API request. Use `requireCompanyId` middleware (from `utils/mappers.js`) on any company-scoped route.
 
-**Authentication**: passwordless TOTP-only. First login triggers authenticator app setup (speakeasy + QR code). Subsequent logins verify a 6-digit code. JWT stored in an httpOnly cookie (7-day expiry).
+**Authentication**: passwordless TOTP-only. First login sends an email OTP; after verifying it the user scans a QR code to set up their authenticator app (speakeasy). Subsequent logins verify a 6-digit TOTP code. JWT stored in an httpOnly cookie (7-day expiry). The `/api/auth/request-otp` endpoint is rate-limited to 10 requests per 15 min.
 
 **Audit log**: every CREATE/UPDATE/DELETE/CONFIRM/CANCEL mutation calls `logAudit()` which writes to `audit_logs` with `user_email`, `entity_type`, `entity_id`, `company_id`, and a `details_json` blob.
+
+**Logo uploads**: handled by multer in `companies.js`, 500 KB limit, stored under `uploads/logos/`. Requires a persistent disk in production (see Render setup).
 
 ## Deployment
 

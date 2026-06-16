@@ -22,6 +22,16 @@ async function migrateSchema() {
   }
 
   console.log('Schema migrated.');
+
+  // Safe-add new columns to existing databases (throws if already present — ignore)
+  const safeAlter = [
+    `ALTER TABLE companies ADD COLUMN mobile2 TEXT DEFAULT ''`,
+    `ALTER TABLE challans ADD COLUMN gst_enabled INTEGER DEFAULT 0`,
+    `ALTER TABLE challans ADD COLUMN ref_bill_no TEXT DEFAULT ''`,
+  ];
+  for (const sql of safeAlter) {
+    try { await run(sql); } catch (_) {}
+  }
 }
 
 /* -------------------- CLEAN SEED (ONLY YOUR COMPANY) -------------------- */

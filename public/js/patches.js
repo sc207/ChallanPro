@@ -66,7 +66,8 @@ doAddCompany = async function() {
   if (!name) { alert('Company name is required.'); return; }
   const co = await API.post('/companies', {
     name, authorizedSignatory: el('nco-prop').value.trim(),
-    mobile: el('nco-phone').value.trim(), email: el('nco-email').value.trim(),
+    mobile: el('nco-phone').value.trim(), mobile2: el('nco-phone2')?.value.trim() || '',
+    email: el('nco-email').value.trim(),
     gstin: el('nco-gst').value.trim(), address: el('nco-addr').value.trim(),
     bank: el('nco-bank').value.trim(), financialYear: el('nco-prefix').value.trim() || '2526',
   });
@@ -81,7 +82,8 @@ saveCompanyEdit = async function(existingId) {
   if (!name) { alert('Company name is required.'); return; }
   const co = await API.put('/companies/' + existingId, {
     name, authorizedSignatory: el('eco-prop').value.trim(),
-    mobile: el('eco-phone').value.trim(), email: el('eco-email').value.trim(),
+    mobile: el('eco-phone').value.trim(), mobile2: el('eco-phone2')?.value.trim() || '',
+    email: el('eco-email').value.trim(),
     gstin: el('eco-gst').value.trim(), address: el('eco-addr').value.trim(),
     bank: el('eco-bank').value.trim(), financialYear: el('eco-prefix').value.trim() || '2526',
   });
@@ -119,17 +121,19 @@ saveChallan = async function(existingId) {
   const clId = parseInt(el('ch-client').value);
   if (!clId) { alert('Select a client.'); return; }
   const billNoVal = (el('ch-bill')?.value || '').trim();
-  if (!existingId) {
-    const dup = APP.challans.some(c => c.billNo === billNoVal);
-    if (dup) { alert('Bill No. "' + billNoVal + '" already exists. Please use a different number.'); return; }
-  }
-  const total = items.reduce((s, it) => s + it.lt, 0);
+  const dup = APP.challans.some(c => c.billNo === billNoVal && c.id !== existingId);
+  if (dup) { alert('DC No. "' + billNoVal + '" already exists. Please use a different number.'); return; }
+  const baseTotal = items.reduce((s, it) => s + it.lt, 0);
+  const gstEnabled = el('ch-gst')?.checked ? 1 : 0;
+  const total = gstEnabled ? +(baseTotal * 1.18).toFixed(2) : baseTotal;
   const payload = {
     id: existingId || undefined,
     billNo: billNoVal,
     clientId: clId, date: el('ch-date').value, mode: el('ch-mode').value,
     items, total, vehicleNo: el('ch-veh').value, receiver: el('ch-recv').value,
     notes: el('ch-notes').value, status: 'draft',
+    gstEnabled,
+    refBillNo: el('ch-ref-bill')?.value || '',
   };
   let ch;
   if (existingId) {

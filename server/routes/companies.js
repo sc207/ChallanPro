@@ -48,11 +48,11 @@ router.post('/', requireRole('admin'), async (req, res) => {
     const maxRow = await queryOne('SELECT MAX(id) as m FROM companies');
     const newId = (maxRow?.m || 0) + 1;
     await run(
-      `INSERT INTO companies (id,name,tagline,address,city,state,pincode,mobile,email,gstin,website,
+      `INSERT INTO companies (id,name,tagline,address,city,state,pincode,mobile,mobile2,email,gstin,website,
         primary_color,secondary_color,footer_text,authorized_signatory,bank,financial_year,next_bill_number)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [newId, b.name, b.tagline||'', b.address||'', b.city||'', b.state||'', b.pincode||'',
-       b.mobile||b.phone||'', b.email||'', b.gstin||b.gst||'', b.website||'',
+       b.mobile||b.phone||'', b.mobile2||'', b.email||'', b.gstin||b.gst||'', b.website||'',
        b.primaryColor||'#0f172a', b.secondaryColor||'#1d4ed8', b.footerText||'',
        b.authorizedSignatory||b.proprietor||'', b.bank||'', b.financialYear||b.billPrefix||'2526', 1]
     );
@@ -69,11 +69,11 @@ router.put('/:id', requireRole('admin'), async (req, res) => {
     const id = parseInt(req.params.id, 10);
     const b = req.body;
     await run(
-      `UPDATE companies SET name=?,tagline=?,address=?,city=?,state=?,pincode=?,mobile=?,email=?,gstin=?,
+      `UPDATE companies SET name=?,tagline=?,address=?,city=?,state=?,pincode=?,mobile=?,mobile2=?,email=?,gstin=?,
         website=?,primary_color=?,secondary_color=?,footer_text=?,authorized_signatory=?,bank=?,
         financial_year=?,next_bill_number=COALESCE(?,next_bill_number) WHERE id=?`,
       [b.name, b.tagline||'', b.address||'', b.city||'', b.state||'', b.pincode||'',
-       b.mobile||b.phone||'', b.email||'', b.gstin||b.gst||'', b.website||'',
+       b.mobile||b.phone||'', b.mobile2||'', b.email||'', b.gstin||b.gst||'', b.website||'',
        b.primaryColor||'#0f172a', b.secondaryColor||'#1d4ed8', b.footerText||'',
        b.authorizedSignatory||b.proprietor||'', b.bank||'',
        b.financialYear||b.billPrefix||'2526', b.nextBillNumber||null, id]
