@@ -126,6 +126,8 @@ saveChallan = async function(existingId) {
   const baseTotal = items.reduce((s, it) => s + it.lt, 0);
   const gstEnabled = el('ch-gst')?.checked ? 1 : 0;
   const total = gstEnabled ? +(baseTotal * 1.18).toFixed(2) : baseTotal;
+  const seriesId = parseInt(el('ch-series')?.value) || null;
+  const showDcNo = el('ch-show-dcno')?.checked ? 1 : 0;
   const payload = {
     id: existingId || undefined,
     billNo: billNoVal,
@@ -134,6 +136,8 @@ saveChallan = async function(existingId) {
     notes: el('ch-notes').value, status: 'draft',
     gstEnabled,
     refBillNo: el('ch-ref-bill')?.value || '',
+    seriesId,
+    showDcNo,
   };
   let ch;
   if (existingId) {
@@ -156,9 +160,13 @@ saveClient = async function(existingId) {
   const name = el('cl-name').value.trim();
   const phone = el('cl-phone').value.trim();
   if (!name || !phone) { alert('Name and Phone are required.'); return; }
+  const obAmt = parseFloat(el('cl-ob-amt')?.value) || 0;
+  const obType = el('cl-ob-type')?.value;
   const obj = {
     name, phone, address: el('cl-addr').value.trim(), email: el('cl-email').value.trim(),
-    gst: el('cl-gst').value.trim(), lastAsked: el('cl-asked').value || null,
+    gst: el('cl-gst').value.trim(),
+    openingBalance: obType === 'cr' ? -obAmt : obAmt,
+    lastAsked: el('cl-asked').value || null,
   };
   let saved;
   if (existingId) {

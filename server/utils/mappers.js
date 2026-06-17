@@ -42,6 +42,7 @@ function mapClient(row) {
     email: row.email || '',
     gst: row.gstin || '',
     gstin: row.gstin || '',
+    openingBalance: row.opening_balance || 0,
     lastAsked: row.last_asked || null,
   };
 }
@@ -79,7 +80,21 @@ function mapChallan(row) {
     vehicleNo: row.vehicle_no || '',
     receiver: row.receiver || '',
     notes: row.notes || '',
+    seriesId: row.series_id || null,
+    showDcNo: row.show_dc_no === undefined || row.show_dc_no === null ? 1 : row.show_dc_no,
     confirmedAt: row.confirmed_at || null,
+  };
+}
+
+function mapDcSeries(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    companyId: row.company_id,
+    name: row.name || 'Default',
+    prefix: row.prefix || '',
+    nextNumber: row.next_number || 1,
+    seriesType: row.series_type || 'normal',
   };
 }
 
@@ -105,4 +120,4 @@ function requireCompanyId(req, res, next) {
   next();
 }
 
-module.exports = { mapCompany, mapClient, mapProduct, mapChallan, mapPayment, requireCompanyId };
+module.exports = { mapCompany, mapClient, mapProduct, mapChallan, mapPayment, mapDcSeries, requireCompanyId };

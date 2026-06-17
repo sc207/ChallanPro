@@ -18,6 +18,7 @@ const paymentsRoutes = require('./routes/payments');
 const usersRoutes = require('./routes/users');
 const activityRoutes = require('./routes/activity');
 const settingsRoutes = require('./routes/settings');
+const dcSeriesRoutes = require('./routes/dcSeries');
 
 const app = express();
 
@@ -71,6 +72,7 @@ app.use('/api/payments', paymentsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/dc-series', dcSeriesRoutes);
 
 /* -------------------- BACKUP IMPORT -------------------- */
 app.post('/api/backup/import', async (req, res) => {
@@ -194,7 +196,7 @@ app.get('/api/backup/export', async (req, res) => {
     }
 
     const { queryAll } = require('./db/connection');
-    const { mapCompany, mapClient, mapProduct, mapChallan, mapPayment } = require('./utils/mappers');
+    const { mapCompany, mapClient, mapProduct, mapChallan, mapPayment, mapDcSeries } = require('./utils/mappers');
 
     const data = {
       companies: (await queryAll('SELECT * FROM companies WHERE is_deleted=0')).map(mapCompany),
@@ -202,11 +204,33 @@ app.get('/api/backup/export', async (req, res) => {
       products: (await queryAll('SELECT * FROM products WHERE is_deleted=0')).map(mapProduct),
       challans: (await queryAll('SELECT * FROM challans WHERE is_deleted=0')).map(mapChallan),
       payments: (await queryAll('SELECT * FROM payments WHERE is_deleted=0')).map(mapPayment),
+      dcSeries: (await queryAll('SELECT * FROM dc_series WHERE is_deleted=0')).map(mapDcSeries),
+      auditLogs: await queryAll('SELECT id,user_email,action,entity_type,entity_id,company_id,details_json,created_at FROM audit_logs ORDER BY id DESC LIMIT 10000'),
       exportedAt: new Date().toISOString(),
     };
 
-    res.setHeader('Content-Disposition', 'attachment; filename=challanpro-backup.json');
+    const filename = 'challanpro-backup-' + new Date().toISOString().slice(0,10) + '.json';
+    res.setHeader('Content-Disposition', 'attachment; filename=' + filename);
     res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* -------------------- WIPE ALL DATA -------------------- */
+app.delete('/api/backup/wipe', async (req, res) => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const { run: dbRun } = require('./db/connection');
+    await dbRun('DELETE FROM audit_logs');
+    await dbRun('DELETE FROM payments');
+    await dbRun('DELETE FROM challans');
+    await dbRun('DELETE FROM clients');
+    await dbRun('DELETE FROM products');
+    await dbRun('UPDATE companies SET next_bill_number = 1');
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

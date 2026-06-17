@@ -23,6 +23,17 @@ CREATE TABLE IF NOT EXISTS companies (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS dc_series (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL REFERENCES companies(id),
+  name TEXT NOT NULL DEFAULT 'Default',
+  prefix TEXT DEFAULT '',
+  next_number INTEGER DEFAULT 1,
+  series_type TEXT DEFAULT 'normal',
+  is_deleted INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS clients (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   company_id INTEGER NOT NULL REFERENCES companies(id),
@@ -31,6 +42,7 @@ CREATE TABLE IF NOT EXISTS clients (
   phone TEXT DEFAULT '',
   email TEXT DEFAULT '',
   gstin TEXT DEFAULT '',
+  opening_balance REAL DEFAULT 0,
   last_asked TEXT,
   is_deleted INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now'))

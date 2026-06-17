@@ -1,5 +1,5 @@
 const TODAY = new Date().toISOString().split('T')[0];
-let APP = { companies: [], clients: [], products: [], challans: [], payments: [], activeCompanyId: 1 };
+let APP = { companies: [], clients: [], products: [], challans: [], payments: [], dcSeries: [], activeCompanyId: 1 };
 let CURRENT_USER = null;
 
 function getActiveCompany() {
@@ -27,16 +27,18 @@ async function loadCompanies() {
 
 async function loadCompanyData(companyId) {
   const cid = companyId || APP.activeCompanyId;
-  const [clients, products, challans, payments] = await Promise.all([
+  const [clients, products, challans, payments, dcSeries] = await Promise.all([
     API.get('/clients?companyId=' + cid),
     API.get('/products?companyId=' + cid),
     API.get('/challans?companyId=' + cid),
     API.get('/payments?companyId=' + cid),
+    API.get('/dc-series?companyId=' + cid),
   ]);
   APP.clients = clients;
   APP.products = products;
   APP.challans = challans.filter(c => c.status !== 'cancelled');
   APP.payments = payments;
+  APP.dcSeries = dcSeries;
   APP.activeCompanyId = cid;
   clearAllocCache();
 }

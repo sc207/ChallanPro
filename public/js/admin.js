@@ -151,3 +151,37 @@ async function reactivateUser(id) {
     toast(e.message, 't-del');
   }
 }
+
+function downloadAllData() {
+  window.location.href = '/api/backup/export';
+}
+
+async function wipeAllData() {
+  const confirmed = confirm(
+    'Are you sure you want to DELETE ALL DATA?\n\n' +
+    'This will permanently remove:\n' +
+    '  • All challans\n' +
+    '  • All payments\n' +
+    '  • All clients\n' +
+    '  • All products\n' +
+    '  • All audit logs\n\n' +
+    'Companies, users and DC series configuration will be kept.\n\n' +
+    'This action CANNOT be undone.'
+  );
+  if (!confirmed) return;
+
+  const typed = prompt('Type  DELETE ALL  to confirm:');
+  if ((typed || '').trim() !== 'DELETE ALL') {
+    toast('Wipe cancelled', 't-info');
+    return;
+  }
+
+  try {
+    await API.del('/backup/wipe');
+    toast('All data wiped successfully');
+    await loadCompanyData(APP.activeCompanyId);
+    nav('dashboard');
+  } catch (e) {
+    toast('Wipe failed: ' + e.message, 't-del');
+  }
+}

@@ -387,9 +387,20 @@
           <tr><td>Challans, Clients, Payments, Reports</td><td style="color:#15803d">✓</td><td style="color:#15803d">✓</td></tr>
           <tr><td>Company settings & logo upload</td><td style="color:#15803d">✓</td><td style="color:#b91c1c">✗</td></tr>
           <tr><td>Manage users</td><td style="color:#15803d">✓</td><td style="color:#b91c1c">✗</td></tr>
-          <tr><td>Backup import / export</td><td style="color:#15803d">✓</td><td style="color:#b91c1c">✗</td></tr>
+          <tr><td>Backup export / wipe</td><td style="color:#15803d">✓</td><td style="color:#b91c1c">✗</td></tr>
         </tbody>
       </table>
+    </div>
+    <div class="card" style="margin-top:16px;max-width:640px">
+      <div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:14px"><i class="fas fa-database" style="color:#1d4ed8;margin-right:6px"></i>Database Management</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary" onclick="downloadAllData()"><i class="fas fa-download" style="margin-right:6px"></i>Export All Data</button>
+        <button class="btn btn-danger" onclick="wipeAllData()"><i class="fas fa-trash-alt" style="margin-right:6px"></i>Wipe All Data</button>
+      </div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:12px;line-height:1.6">
+        <strong style="color:#475569">Export</strong> — Downloads a full JSON backup: companies, clients, products, challans, payments, DC series, audit log.<br>
+        <strong style="color:#b91c1c">Wipe</strong> — Permanently deletes all challans, payments, clients, products and audit logs. Companies and users are kept.
+      </div>
     </div>
   </div>
 </div>
@@ -492,13 +503,15 @@ function getClientAlloc(clientId) {
 }
 
 function clientBalance(clientId) {
+  const cl = APP.clients.find(c => c.id === clientId);
+  const ob = cl ? (cl.openingBalance || 0) : 0;
   const creditSales = APP.challans
     .filter(c => c.clientId === clientId && c.mode === 'credit')
     .reduce((s, c) => s + c.total, 0);
   const totalPaid = APP.payments
     .filter(p => p.clientId === clientId)
     .reduce((s, p) => s + p.amount, 0);
-  return creditSales - totalPaid;
+  return ob + creditSales - totalPaid;
 }
 
 function paidAmt(ch) {
@@ -568,13 +581,126 @@ function fmtPdf(n) {
 }
 function fmtD(d) { return d ? new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—'; }
 function clientName(id) { return APP.clients.find(c=>c.id===id)?.name || '—'; }
-function nextBillNo() {
+function nextBillNo(seriesId) {
+  if (seriesId) {
+    const s = APP.dcSeries.find(x => x.id === seriesId);
+    if (s) return (s.prefix || '') + String(s.nextNumber).padStart(3, '0');
+  }
+  // fallback: use first available series or company prefix
+  const firstSeries = APP.dcSeries.find(x => x.companyId === APP.activeCompanyId);
+  if (firstSeries) return (firstSeries.prefix || '') + String(firstSeries.nextNumber).padStart(3, '0');
   const co = getActiveCompany();
   const prefix = (co.billPrefix || '2526') + '/';
-  const nums = cChallans().map(c => parseInt(c.billNo.split('/')[1]||0)).filter(n=>!isNaN(n));
+  const nums = cChallans().map(c => parseInt((c.billNo||'').split('/')[1]||0)).filter(n=>!isNaN(n));
   const next = nums.length ? Math.max(...nums)+1 : 1;
   return prefix + String(next).padStart(3,'0');
 }
+function onSeriesChange() {
+  var sid = parseInt(el('ch-series')?.value) || 0;
+  var s = sid ? APP.dcSeries.find(function(x){return x.id===sid;}) : null;
+  var billInp = el('ch-bill');
+  if (billInp && s) billInp.value = (s.prefix||'') + String(s.nextNumber).padStart(3,'0');
+  applySeriesTypeToModal(s);
+}
+function applySeriesTypeToModal(s) {
+  var billInp = el('ch-bill');
+  var showDcnoCheck = el('ch-show-dcno');
+  if (!billInp) return;
+  var sType = s ? (s.seriesType || 'normal') : 'normal';
+  if (sType === 'gst') {
+    // GST: auto-assigned, user must not change it
+    billInp.readOnly = true;
+    billInp.style.cssText = 'background:#f8fafc;color:#64748b;border-color:#e2e8f0';
+    if (showDcnoCheck) { showDcnoCheck.checked = true; showDcnoCheck.disabled = false; }
+  } else if (sType === 'hide') {
+    // Hide: DC No hidden from print, no point editing
+    billInp.readOnly = true;
+    billInp.style.cssText = 'background:#f8fafc;color:#64748b;border-color:#e2e8f0';
+    if (showDcnoCheck) { showDcnoCheck.checked = false; showDcnoCheck.disabled = true; }
+  } else {
+    // Normal: fully editable
+    billInp.readOnly = false;
+    billInp.style.cssText = '';
+    if (showDcnoCheck) { showDcnoCheck.disabled = false; }
+  }
+}
+function _smTypeOpts(cur) {
+  return [{v:'normal',l:'Normal'},{v:'gst',l:'GST'},{v:'hide',l:'Hide'}].map(function(t){
+    return '<option value="'+t.v+'"'+(cur===t.v?' selected':'')+'>'+t.l+'</option>';
+  }).join('');
+}
+function _smRowHtml(s) {
+  return '<tr>'+
+    '<td><input class="inp" id="sm-name-'+s.id+'" value="'+s.name+'" style="font-size:12px"></td>'+
+    '<td><input class="inp" id="sm-prefix-'+s.id+'" value="'+s.prefix+'" style="font-size:12px;width:90px" placeholder="e.g. 2526/"></td>'+
+    '<td><select class="inp" id="sm-type-'+s.id+'" style="font-size:12px;padding:3px 5px">'+_smTypeOpts(s.seriesType)+'</select></td>'+
+    '<td style="text-align:center;color:#475569;font-size:13px">'+s.nextNumber+'</td>'+
+    '<td style="text-align:center">'+
+      '<button onclick="saveSeriesRow('+s.id+')" style="background:#dbeafe;color:#1d4ed8;border:none;border-radius:5px;padding:3px 9px;font-size:12px;cursor:pointer;margin-right:4px">Save</button>'+
+      '<button onclick="deleteSeriesRow('+s.id+')" style="background:#fee2e2;color:#b91c1c;border:none;border-radius:5px;padding:3px 9px;font-size:12px;cursor:pointer">Del</button>'+
+    '</td>'+
+  '</tr>';
+}
+function openSeriesManagerModal() {
+  function seriesRows() {
+    if (!APP.dcSeries.length) return '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:12px">No series yet</td></tr>';
+    return APP.dcSeries.map(_smRowHtml).join('');
+  }
+  var html =
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:14px">'+
+      '<thead><tr style="font-size:11px;color:#475569;font-weight:700;text-transform:uppercase">'+
+        '<th style="text-align:left;padding:6px 4px">Name</th>'+
+        '<th style="text-align:left;padding:6px 4px">Prefix</th>'+
+        '<th style="text-align:left;padding:6px 4px">Type</th>'+
+        '<th style="text-align:center;padding:6px 4px">Next#</th>'+
+        '<th></th>'+
+      '</tr></thead>'+
+      '<tbody id="sm-rows">'+seriesRows()+'</tbody>'+
+    '</table>'+
+    '<div style="border-top:1px solid #e2e8f0;padding-top:12px;display:grid;grid-template-columns:1fr 100px 100px 70px auto;gap:8px;align-items:flex-end">'+
+      '<div><label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase">New Series Name</label><input class="inp" id="sm-new-name" placeholder="e.g. GST Series" style="margin-top:4px"></div>'+
+      '<div><label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase">Prefix</label><input class="inp" id="sm-new-prefix" placeholder="2526/" style="margin-top:4px"></div>'+
+      '<div><label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase">Type</label><select class="inp" id="sm-new-type" style="margin-top:4px">'+_smTypeOpts('normal')+'</select></div>'+
+      '<div><label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase">Start#</label><input class="inp" id="sm-new-start" type="number" value="1" min="1" style="margin-top:4px"></div>'+
+      '<button onclick="addSeriesRow()" style="height:38px;background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:0 14px;font-weight:600;font-size:13px;cursor:pointer">+ Add</button>'+
+    '</div>';
+  openModal('Manage DC Series', html, null);
+  el('modal-foot').innerHTML = '<button class="btn btn-ghost" onclick="refreshSeriesAndClose()">Done</button>';
+}
+async function addSeriesRow() {
+  var name = (el('sm-new-name')?.value||'').trim();
+  var prefix = (el('sm-new-prefix')?.value||'').trim();
+  var seriesType = el('sm-new-type')?.value || 'normal';
+  var start = parseInt(el('sm-new-start')?.value)||1;
+  if (!name) { alert('Series name is required.'); return; }
+  var s = await API.post('/dc-series?companyId='+APP.activeCompanyId, {name, prefix, seriesType, nextNumber:start});
+  APP.dcSeries.push(s);
+  el('sm-rows').innerHTML = APP.dcSeries.map(_smRowHtml).join('');
+  if(el('sm-new-name')) el('sm-new-name').value='';
+  if(el('sm-new-prefix')) el('sm-new-prefix').value='';
+  toast('Series added');
+}
+async function saveSeriesRow(id) {
+  var name = (el('sm-name-'+id)?.value||'').trim();
+  var prefix = (el('sm-prefix-'+id)?.value||'');
+  var seriesType = el('sm-type-'+id)?.value || 'normal';
+  if (!name) { alert('Name required.'); return; }
+  var s = await API.put('/dc-series/'+id, {name, prefix, seriesType});
+  var idx = APP.dcSeries.findIndex(function(x){return x.id===id;});
+  if (idx >= 0) APP.dcSeries[idx] = s;
+  toast('Series saved');
+}
+async function deleteSeriesRow(id) {
+  if (!confirm('Delete this series?')) return;
+  await API.del('/dc-series/'+id);
+  APP.dcSeries = APP.dcSeries.filter(function(x){return x.id!==id;});
+  el('sm-rows').innerHTML = APP.dcSeries.length
+    ? APP.dcSeries.map(_smRowHtml).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:12px">No series yet</td></tr>';
+  toast('Series deleted','t-del');
+}
+function refreshSeriesAndClose() { closeModal(); }
+
 function validateBillNo(input, selfId){
   var val=(input.value||'').trim();
   var err=el('ch-bill-err');
@@ -889,10 +1015,10 @@ function downloadDailyBookPDF() {
 
   let y=43;
   const boxes=[
-  {l:'Total Sales', v:'₹'+fmtPdf(tSales), c:[29,78,216]},
-  {l:'Cash In Hand',v:'₹'+fmtPdf(tCashCh+tCashPmt),c:[21,128,61]},
-  {l:'UPI Received', v:'₹'+fmtPdf(tUPI),c:[109,40,217]},
-  {l:'Credit Given', v:'₹'+fmtPdf(tCred),c:[185,28,28]},
+  {l:'Total Sales', v:'Rs.'+fmtPdf(tSales), c:[29,78,216]},
+  {l:'Cash In Hand',v:'Rs.'+fmtPdf(tCashCh+tCashPmt),c:[21,128,61]},
+  {l:'UPI Received', v:'Rs.'+fmtPdf(tUPI),c:[109,40,217]},
+  {l:'Credit Given', v:'Rs.'+fmtPdf(tCred),c:[185,28,28]},
 ];
   boxes.forEach((b,i)=>{
     const x=mg+i*45;
@@ -952,26 +1078,43 @@ function downloadLedgerPDF(clientId) {
 
   const events=[];
   APP.challans.filter(c=>c.clientId===clientId&&c.mode==='credit').forEach(c=>{
-    events.push({date:c.date,type:'sale',amount:c.total,ref:c.billNo,desc:c.items.map(i=>i.name).join(', ')});
+    const desc=c.items.slice(0,3).map(i=>i.name).join(', ')+(c.items.length>3?' …':'');
+    events.push({date:c.date,type:'sale',amount:c.total,ref:c.billNo,desc});
   });
   APP.payments.filter(p=>p.clientId===clientId).forEach(p=>{
     events.push({date:p.date,type:'payment',amount:p.amount,ref:'PMT',desc:p.note||'Payment received',mode:p.mode});
   });
   events.sort((a,b)=>new Date(a.date)-new Date(b.date)||(a.type==='payment'?1:-1));
 
-  let running=0;
-  const rows=events.map(e=>{
-    if(e.type==='sale'){running+=e.amount;return[fmtD(e.date),e.ref+' — '+e.desc,'₹'+fmtPdf(e.amount),'—','₹'+fmtPdf(Math.abs(running))+' '+(running>0?'Dr':'Cr')];}
-    else{running-=e.amount;return[fmtD(e.date),'Payment ('+e.mode.toUpperCase()+') — '+(e.desc||''),'—','₹'+fmtPdf(e.amount),running===0?'NIL':'₹'+fmtPdf(Math.abs(running))+' '+(running>0?'Dr':'Cr')];}
+  const cl_ob = cl.openingBalance || 0;
+  let running = cl_ob;
+  const obRows = [];
+  if (cl_ob !== 0) {
+    obRows.push(['—','Opening Balance',
+      cl_ob > 0 ? 'Rs.'+fmtPdf(cl_ob) : '—',
+      cl_ob < 0 ? 'Rs.'+fmtPdf(Math.abs(cl_ob)) : '—',
+      'Rs.'+fmtPdf(Math.abs(cl_ob))+' '+(cl_ob > 0 ? 'Dr' : 'Cr')
+    ]);
+  }
+  const txRows=events.map(e=>{
+    if(e.type==='sale'){running+=e.amount;return[fmtD(e.date),e.ref+' — '+e.desc,'Rs.'+fmtPdf(e.amount),'—',running===0?'NIL':'Rs.'+fmtPdf(Math.abs(running))+' '+(running>0?'Dr':'Cr')];}
+    else{running-=e.amount;return[fmtD(e.date),'Payment ('+e.mode.toUpperCase()+') — '+(e.desc||''),'—','Rs.'+fmtPdf(e.amount),running===0?'NIL':'Rs.'+fmtPdf(Math.abs(running))+' '+(running>0?'Dr':'Cr')];}
   });
+  const rows = obRows.concat(txRows);
 
   doc.autoTable({startY:y,margin:{left:mg,right:mg},
     head:[['Date','Particulars','Debit (Sales Rs.)','Credit (Payments Rs.)','Balance']],
     body:rows,
     headStyles:{fillColor:[15,23,42],textColor:[255,255,255],fontSize:8,fontStyle:'bold',cellPadding:3},
-    bodyStyles:{fontSize:8,cellPadding:2.5,textColor:[51,65,85]},
+    bodyStyles:{fontSize:8,cellPadding:2.5,textColor:[51,65,85],overflow:'linebreak'},
     alternateRowStyles:{fillColor:[248,250,252]},
-    columnStyles:{2:{halign:'right',textColor:[185,28,28]},3:{halign:'right',textColor:[21,128,61]},4:{halign:'right',fontStyle:'bold'}}
+    columnStyles:{
+      0:{cellWidth:22},
+      1:{cellWidth:78,overflow:'linebreak'},
+      2:{cellWidth:28,halign:'right',textColor:[185,28,28]},
+      3:{cellWidth:28,halign:'right',textColor:[21,128,61]},
+      4:{cellWidth:26,halign:'right',fontStyle:'bold'}
+    }
   });
 
   y=doc.lastAutoTable.finalY+6;
@@ -1376,7 +1519,16 @@ function handleSave(){ if(modalSaveHandler) modalSaveHandler(); }
 // ═══ CHALLAN MODAL ═══
 function openChallanModal(id){
   var ch = id ? APP.challans.find(function(c){return c.id===id;}) : null;
-  var bill = ch ? ch.billNo : nextBillNo();
+  var defSeries = APP.dcSeries.length ? APP.dcSeries[0].id : 0;
+  var curSeriesId = ch ? (ch.seriesId || 0) : defSeries;
+  var bill = ch ? ch.billNo : nextBillNo(curSeriesId);
+  var showDcNo = ch ? (ch.showDcNo !== undefined ? ch.showDcNo : 1) : 1;
+  var seriesOpts = (APP.dcSeries.length ? '' : '<option value="">— No Series —</option>') +
+    APP.dcSeries.map(function(s){
+      var preview = (s.prefix||'')+String(s.nextNumber).padStart(3,'0');
+      return '<option value="'+s.id+'"'+(curSeriesId===s.id?' selected':'')+'>'+s.name+' (next: '+preview+')</option>';
+    }).join('') +
+    '<option value=""'+(curSeriesId?'':' selected')+'>— Manual / No Series —</option>';
   var clOpts = APP.clients.map(function(c){return '<option value="'+c.id+'" '+(ch&&ch.clientId===c.id?'selected':'')+'>'+c.name+'</option>';}).join('');
 
   var rowHTML = function(item) {
@@ -1399,6 +1551,10 @@ function openChallanModal(id){
 
   var html=
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div class="form-row" style="grid-column:1/-1;display:flex;align-items:flex-end;gap:8px">'+
+        '<div style="flex:1"><label>DC Series</label><select class="inp" id="ch-series" onchange="onSeriesChange()">'+seriesOpts+'</select></div>'+
+        '<button type="button" onclick="openSeriesManagerModal()" style="height:38px;padding:0 12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;font-size:12px;font-weight:600;color:#475569;cursor:pointer;white-space:nowrap">Manage</button>'+
+      '</div>'+
       '<div class="form-row"><label>DC No</label><input class="inp" id="ch-bill" value="'+bill+'" oninput="validateBillNo(this,\''+(id||'')+'\')"><div id="ch-bill-err" style="color:#b91c1c;font-size:11px;margin-top:3px;display:none">DC No. already exists</div></div>'+
       '<div class="form-row"><label>Date</label><input class="inp" id="ch-date" type="date" value="'+(ch?ch.date:TODAY)+'"></div>'+
       '<div class="form-row"><label>Bill No (Ref)</label><input class="inp" id="ch-ref-bill" value="'+(ch?ch.refBillNo||'':'')+'" placeholder="Optional bill reference"></div>'+
@@ -1411,10 +1567,14 @@ function openChallanModal(id){
       '<div class="form-row"><label>Vehicle No</label><input class="inp" id="ch-veh" value="'+(ch?ch.vehicleNo:'')+'" placeholder="GJ-05-AB-1234"></div>'+
       '<div class="form-row"><label>Receiver Name</label><input class="inp" id="ch-recv" value="'+(ch?ch.receiver:'')+'" placeholder="Name"></div>'+
       '<div class="form-row" style="grid-column:1/-1"><label>Notes</label><input class="inp" id="ch-notes" value="'+(ch?ch.notes:'')+'" placeholder="Optional note"></div>'+
-      '<div class="form-row" style="grid-column:1/-1">'+
+      '<div class="form-row" style="grid-column:1/-1;display:flex;align-items:center;gap:24px;flex-wrap:wrap">'+
         '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:#334155;font-weight:600">'+
           '<input type="checkbox" id="ch-gst" onchange="calcGrandTotal()"'+(ch&&ch.gstEnabled?' checked':'')+' style="width:16px;height:16px;cursor:pointer">'+
           'Apply GST &nbsp;&mdash;&nbsp; CGST 9% + SGST 9%'+
+        '</label>'+
+        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:#334155;font-weight:600">'+
+          '<input type="checkbox" id="ch-show-dcno"'+(showDcNo?' checked':'')+' style="width:16px;height:16px;cursor:pointer">'+
+          'Show DC No. on print'+
         '</label>'+
       '</div>'+
     '</div>'+
@@ -1435,6 +1595,8 @@ function openChallanModal(id){
     '</div>';
 
   openModal(ch?'Edit Challan — '+ch.billNo:'New Challan', html, function(){saveChallan(id);}, true);
+  var _initSeries = curSeriesId ? APP.dcSeries.find(function(x){return x.id===curSeriesId;}) : null;
+  applySeriesTypeToModal(_initSeries);
   setTimeout(calcGrandTotal, 50);
 }
 
@@ -1535,6 +1697,8 @@ function openClientModal(id){
       '<div class="form-row"><label>Email</label><input class="inp" id="cl-email" type="email" value="'+(cl?cl.email:'')+'" placeholder="email@example.com"></div>'+
       '<div class="form-row"><label>GST No</label><input class="inp" id="cl-gst" value="'+(cl?cl.gst:'')+'" placeholder="24AABCC1234F1Z5"></div>'+
       '<div class="form-row"><label>Last Asked for Payment</label><input class="inp" id="cl-asked" type="date" value="'+(cl&&cl.lastAsked?cl.lastAsked:'')+'"></div>'+
+      '<div class="form-row"><label>Opening Balance (₹)</label><input class="inp" id="cl-ob-amt" type="number" min="0" step="0.01" value="'+Math.abs(cl&&cl.openingBalance?cl.openingBalance:0)+'" placeholder="0.00"></div>'+
+      '<div class="form-row"><label>Balance Type</label><select class="inp" id="cl-ob-type"><option value="dr"'+((!cl||!cl.openingBalance||cl.openingBalance>=0)?' selected':'')+'>Dr — To Collect (client owes)</option><option value="cr"'+(cl&&cl.openingBalance<0?' selected':'')+'>Cr — Advance (client paid)</option></select></div>'+
     '</div>';
   openModal(cl?'Edit — '+cl.name:'Add New Client', html, function(){saveClient(id);});
 }
@@ -1542,6 +1706,8 @@ function saveClient(existingId){
   var name=el('cl-name').value.trim();
   var phone=el('cl-phone').value.trim();
   if(!name||!phone){alert('Name and Phone are required.');return;}
+  var obAmt=parseFloat(el('cl-ob-amt')&&el('cl-ob-amt').value)||0;
+  var obType=el('cl-ob-type')&&el('cl-ob-type').value;
   var obj={
     id: existingId||(APP.clients.length?Math.max.apply(null,APP.clients.map(function(c){return c.id;}))+1:1),
     companyId: APP.activeCompanyId,
@@ -1549,6 +1715,7 @@ function saveClient(existingId){
     address:el('cl-addr').value.trim(),
     email:el('cl-email').value.trim(),
     gst:el('cl-gst').value.trim(),
+    openingBalance:obType==='cr'?-obAmt:obAmt,
     lastAsked:el('cl-asked').value||null
   };
   if(existingId){var idx=APP.clients.findIndex(function(c){return c.id===existingId;});APP.clients[idx]=obj;}
@@ -1864,12 +2031,12 @@ function downloadReportPDF() {
   pdfHeader(doc, 'Monthly Report  ·  ' + mLabel + '  ·  ' + bName + '  ·  Generated: ' + fmtD(TODAY), true);
   var y = 43;
   var boxes = [
-    { l:'Total Sales',    v:'₹'+fmtPdf(tS),   c:[29,78,216]  },
-    { l:'Cash Sales',     v:'₹'+fmtPdf(tCash),c:[21,128,61]  },
-    { l:'UPI Sales',      v:'₹'+fmtPdf(tUPI), c:[109,40,217] },
-    { l:'Credit Sales',   v:'₹'+fmtPdf(tCred),c:[157,23,77]  },
-    { l:'Collected',      v:'₹'+fmtPdf(tP),   c:[21,128,61]  },
-    { l:'Outstanding',    v:'₹'+fmtPdf(tO),   c:tO>0?[185,28,28]:[21,128,61] },
+    { l:'Total Sales',    v:'Rs.'+fmtPdf(tS),   c:[29,78,216]  },
+    { l:'Cash Sales',     v:'Rs.'+fmtPdf(tCash),c:[21,128,61]  },
+    { l:'UPI Sales',      v:'Rs.'+fmtPdf(tUPI), c:[109,40,217] },
+    { l:'Credit Sales',   v:'Rs.'+fmtPdf(tCred),c:[157,23,77]  },
+    { l:'Collected',      v:'Rs.'+fmtPdf(tP),   c:[21,128,61]  },
+    { l:'Outstanding',    v:'Rs.'+fmtPdf(tO),   c:tO>0?[185,28,28]:[21,128,61] },
     { l:'Total Challans', v:list.length+'',c:[100,116,139]}
   ];
   boxes.forEach(function(b, i) {
@@ -1904,11 +2071,11 @@ function downloadAgingPDF() {
   pdfHeader(doc, 'Credit Aging Analysis  ·  As of ' + fmtD(TODAY), true);
   var y = 43;
   var boxes = [
-    { l:'0–30 Days (Fresh)',    v:'₹'+fmtPdf(b.b0),  c:[21,128,61]   },
-    { l:'31–60 Days (Remind)',  v:'₹'+fmtPdf(b.b31), c:[217,119,6]   },
-    { l:'61–90 Days (Urgent)',  v:'₹'+fmtPdf(b.b61), c:[220,38,38]   },
-    { l:'90+ Days (Critical)',  v:'₹'+fmtPdf(b.b90), c:[127,29,29]   },
-    { l:'Total Outstanding',    v:'₹'+fmtPdf(totalOS),c:[185,28,28]  },
+    { l:'0–30 Days (Fresh)',    v:'Rs.'+fmtPdf(b.b0),  c:[21,128,61]   },
+    { l:'31–60 Days (Remind)',  v:'Rs.'+fmtPdf(b.b31), c:[217,119,6]   },
+    { l:'61–90 Days (Urgent)',  v:'Rs.'+fmtPdf(b.b61), c:[220,38,38]   },
+    { l:'90+ Days (Critical)',  v:'Rs.'+fmtPdf(b.b90), c:[127,29,29]   },
+    { l:'Total Outstanding',    v:'Rs.'+fmtPdf(totalOS),c:[185,28,28]  },
   ];
   boxes.forEach(function(bx, i) {
     var x = mg + i * 53;
@@ -1984,9 +2151,9 @@ function downloadChallansListPDF() {
   var y=43;
   var boxes=[
     {l:'Total Challans',  v:list.length+'',   c:[29,78,216]},
-    {l:'Total Value',     v:'₹'+fmtPdf(tS),        c:[29,78,216]},
-    {l:'Collected',       v:'₹'+fmtPdf(tP),        c:[21,128,61]},
-    {l:'Outstanding',     v:'₹'+fmtPdf(tO),        c:tO>0?[185,28,28]:[21,128,61]},
+    {l:'Total Value',     v:'Rs.'+fmtPdf(tS),        c:[29,78,216]},
+    {l:'Collected',       v:'Rs.'+fmtPdf(tP),        c:[21,128,61]},
+    {l:'Outstanding',     v:'Rs.'+fmtPdf(tO),        c:tO>0?[185,28,28]:[21,128,61]},
     {l:'Paid',            v:nPaid+'',           c:[21,128,61]},
     {l:'Partial',         v:nPart+'',           c:[217,119,6]},
     {l:'Pending',         v:nPend+'',           c:[185,28,28]},
@@ -2039,9 +2206,9 @@ function downloadPaymentsPDF() {
   pdfHeader(doc, subtitle, true);
   var y=43;
   var boxes=[
-    {l:'Total Collected', v:'₹'+fmtPdf(tot),        c:[21,128,61]},
-    {l:'Cash',            v:'₹'+fmtPdf(tCash),       c:[21,128,61]},
-    {l:'UPI',             v:'₹'+fmtPdf(tUPI),        c:[109,40,217]},
+    {l:'Total Collected', v:'Rs.'+fmtPdf(tot),        c:[21,128,61]},
+    {l:'Cash',            v:'Rs.'+fmtPdf(tCash),       c:[21,128,61]},
+    {l:'UPI',             v:'Rs.'+fmtPdf(tUPI),        c:[109,40,217]},
     {l:'Total Entries',   v:list.length+'',       c:[29,78,216]},
   ];
   boxes.forEach(function(b,i){
@@ -2086,9 +2253,9 @@ function downloadClientsPDF() {
   var y=43;
   var boxes=[
     {l:'Total Clients',      v:cClients().length+'',  c:[29,78,216]},
-    {l:'Total Sales',        v:'₹'+(totalSales),      c:[29,78,216]},
-    {l:'Total Collected',    v:'₹'+fmtPdf(totalPaid),       c:[21,128,61]},
-    {l:'Total Outstanding',  v:'₹'+fmtPdf(totalOS),         c:totalOS>0?[185,28,28]:[21,128,61]},
+    {l:'Total Sales',        v:'Rs.'+fmtPdf(totalSales),  c:[29,78,216]},
+    {l:'Total Collected',    v:'Rs.'+fmtPdf(totalPaid),   c:[21,128,61]},
+    {l:'Total Outstanding',  v:'Rs.'+fmtPdf(totalOS),     c:totalOS>0?[185,28,28]:[21,128,61]},
     {l:'Clients with Credit',v:nCredit+'',              c:[185,28,28]},
   ];
   boxes.forEach(function(b,i){
@@ -2688,6 +2855,7 @@ function _buildChallanHalf(ch, client, co){
   var refBillNo = ch ? esc(ch.refBillNo||'')  : '';
   var billDate  = ch ? esc(fmtD(ch.date))     : '';
   var vehicleNo = ch ? esc(ch.vehicleNo || '') : '';
+  var showDcNo  = ch ? (ch.showDcNo !== undefined && ch.showDcNo !== null ? ch.showDcNo : 1) : 1;
   var toName    = client ? esc(client.name||'')    : '';
   var toAddr    = client ? esc(client.address||'') : '';
   var toPhone   = client ? esc(client.phone||'')   : '';
@@ -2774,7 +2942,7 @@ function _buildChallanHalf(ch, client, co){
       '<div class="cph-refs">'+
         '<div class="cph-ref"><span class="cph-rl">Vehicle :</span><input class="cph-rv" value="'+vehicleNo+'" placeholder="GJ01AB1234"/></div>'+
         '<div class="cph-ref"><span class="cph-rl">Date :</span><input class="cph-rv" value="'+billDate+'"/></div>'+
-        '<div class="cph-ref"><span class="cph-rl">DC No. :</span><input class="cph-rv" value="'+billNo+'"/></div>'+
+        (showDcNo?'<div class="cph-ref"><span class="cph-rl">DC No. :</span><input class="cph-rv" value="'+billNo+'"/></div>':'')+
         '<div class="cph-ref"><span class="cph-rl">Bill No. :</span><input class="cph-rv" value="'+refBillNo+'" placeholder="—"/></div>'+
       '</div>'+
     '</div>'+

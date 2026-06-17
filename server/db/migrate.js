@@ -1,7 +1,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { getDb, run, queryOne } = require('./connection');
+const { getDb, run, queryOne, queryAll } = require('./connection');
 
 /* -------------------- SCHEMA MIGRATION -------------------- */
 async function migrateSchema() {
@@ -28,10 +28,26 @@ async function migrateSchema() {
     `ALTER TABLE companies ADD COLUMN mobile2 TEXT DEFAULT ''`,
     `ALTER TABLE challans ADD COLUMN gst_enabled INTEGER DEFAULT 0`,
     `ALTER TABLE challans ADD COLUMN ref_bill_no TEXT DEFAULT ''`,
+    `ALTER TABLE clients ADD COLUMN opening_balance REAL DEFAULT 0`,
+    `ALTER TABLE challans ADD COLUMN series_id INTEGER`,
+    `ALTER TABLE challans ADD COLUMN show_dc_no INTEGER DEFAULT 1`,
+    `ALTER TABLE dc_series ADD COLUMN series_type TEXT DEFAULT 'normal'`,
   ];
   for (const sql of safeAlter) {
     try { await run(sql); } catch (_) {}
   }
+
+  // Create a default DC series for every company that doesn't have one yet
+  const companiesWithoutSeries = await queryAll(
+    `SELECT id, financial_year, next_bill_number FROM companies WHERE is_deleted=0 AND id NOT IN (SELECT DISTINCT company_id FROM dc_series WHERE is_deleted=0)`
+  );
+  for (const co of companiesWithoutSeries) {
+    await run(
+      `INSERT INTO dc_series (company_id, name, prefix, next_number) VALUES (?,?,?,?)`,
+      [co.id, 'Default', (co.financial_year || '2526') + '/', co.next_bill_number || 1]
+    );
+  }
+  if (companiesWithoutSeries.length) console.log(`Created default DC series for ${companiesWithoutSeries.length} company/companies.`);
 }
 
 /* -------------------- CLEAN SEED (ONLY YOUR COMPANY) -------------------- */

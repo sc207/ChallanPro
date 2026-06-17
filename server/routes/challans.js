@@ -2,7 +2,7 @@ const express = require('express');
 const { queryAll, queryOne, run } = require('../db/connection');
 const { mapChallan, requireCompanyId } = require('../utils/mappers');
 const { logAudit } = require('../services/audit');
-const { assignBillNumber } = require('../services/billNumber');
+const { assignBillNumber, assignBillNumberFromSeries } = require('../services/billNumber');
 
 const router = express.Router();
 
@@ -36,10 +36,11 @@ router.post('/', requireCompanyId, async (req, res) => {
     let billNo = b.billNo || '';
 
     await run(
-      `INSERT INTO challans (id,company_id,client_id,bill_no,date,total,mode,status,items_json,gst_enabled,ref_bill_no,vehicle_no,receiver,notes)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO challans (id,company_id,client_id,bill_no,date,total,mode,status,items_json,gst_enabled,ref_bill_no,vehicle_no,receiver,notes,series_id,show_dc_no)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [id, req.companyId, b.clientId, billNo, b.date, total, b.mode||'credit', status,
-       JSON.stringify(items), b.gstEnabled||0, b.refBillNo||'', b.vehicleNo||'', b.receiver||'', b.notes||'']
+       JSON.stringify(items), b.gstEnabled||0, b.refBillNo||'', b.vehicleNo||'', b.receiver||'', b.notes||'',
+       b.seriesId||null, b.showDcNo??1]
     );
     const row = await queryOne('SELECT * FROM challans WHERE id = ?', [id]);
     await logAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', entityType: 'challan', entityId: id, companyId: req.companyId, details: { billNo } });
@@ -58,10 +59,11 @@ router.put('/:id', async (req, res) => {
     const items = b.items || JSON.parse(existing.items_json || '[]');
     const total = b.total ?? items.reduce((s, i) => s + (i.lt || 0), 0);
     await run(
-      `UPDATE challans SET bill_no=?,client_id=?,date=?,total=?,mode=?,items_json=?,gst_enabled=?,ref_bill_no=?,vehicle_no=?,receiver=?,notes=? WHERE id=?`,
+      `UPDATE challans SET bill_no=?,client_id=?,date=?,total=?,mode=?,items_json=?,gst_enabled=?,ref_bill_no=?,vehicle_no=?,receiver=?,notes=?,series_id=?,show_dc_no=? WHERE id=?`,
       [b.billNo??existing.bill_no, b.clientId||existing.client_id, b.date||existing.date, total, b.mode||existing.mode,
        JSON.stringify(items), b.gstEnabled??existing.gst_enabled, b.refBillNo??existing.ref_bill_no,
-       b.vehicleNo??existing.vehicle_no, b.receiver??existing.receiver, b.notes??existing.notes, id]
+       b.vehicleNo??existing.vehicle_no, b.receiver??existing.receiver, b.notes??existing.notes,
+       b.seriesId??existing.series_id, b.showDcNo??existing.show_dc_no??1, id]
     );
     const row = await queryOne('SELECT * FROM challans WHERE id = ?', [id]);
     await logAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', entityType: 'challan', entityId: id, companyId: existing.company_id, details: { billNo: row.bill_no } });
@@ -80,14 +82,24 @@ router.post('/:id/confirm', async (req, res) => {
     let billNo;
     if (existing.bill_no && existing.bill_no.trim()) {
       billNo = existing.bill_no;
-      const parts = billNo.split('/');
-      const num = parseInt(parts[1]) || 0;
-      const co = await queryOne('SELECT next_bill_number FROM companies WHERE id = ?', [existing.company_id]);
-      if (co && num >= co.next_bill_number) {
-        await run('UPDATE companies SET next_bill_number = ? WHERE id = ?', [num + 1, existing.company_id]);
+      if (existing.series_id) {
+        // Bump series counter if manually-entered number is >= current next
+        const s = await queryOne('SELECT prefix, next_number FROM dc_series WHERE id = ?', [existing.series_id]);
+        if (s) {
+          const numStr = billNo.startsWith(s.prefix || '') ? billNo.slice((s.prefix||'').length) : billNo;
+          const num = parseInt(numStr) || 0;
+          if (num >= s.next_number) await run('UPDATE dc_series SET next_number = ? WHERE id = ?', [num + 1, existing.series_id]);
+        }
+      } else {
+        const parts = billNo.split('/');
+        const num = parseInt(parts[parts.length - 1]) || 0;
+        const co = await queryOne('SELECT next_bill_number FROM companies WHERE id = ?', [existing.company_id]);
+        if (co && num >= co.next_bill_number) await run('UPDATE companies SET next_bill_number = ? WHERE id = ?', [num + 1, existing.company_id]);
       }
     } else {
-      billNo = await assignBillNumber(existing.company_id);
+      billNo = existing.series_id
+        ? await assignBillNumberFromSeries(existing.series_id)
+        : await assignBillNumber(existing.company_id);
     }
     await run(
       `UPDATE challans SET status='confirmed', bill_no=?, confirmed_at=datetime('now') WHERE id=?`,
