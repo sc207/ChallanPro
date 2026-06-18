@@ -3169,7 +3169,7 @@ function _buildChallanHalf(ch, client, co){
         '</tr></thead>'+
         '<tbody>'+rowHTML+'</tbody>'+
         (function(){
-          // Qty summary by unit (case-insensitive)
+          // Qty by unit (case-insensitive)
           var unitMap={};
           items.forEach(function(it){
             if(!it||!it.qty) return;
@@ -3179,7 +3179,7 @@ function _buildChallanHalf(ch, client, co){
           var unitKeys=Object.keys(unitMap);
           var qtySummaryStr=unitKeys.length
             ? unitKeys.map(function(u){return u+' : '+parseFloat(unitMap[u].toFixed(4));}).join('  |  ')
-            : '';
+            : '—';
           // GST breakdown with proper rounding
           var cgst=0,sgst=0,displayTotal=grandTotal,base=grandTotal;
           if(gstEnabled&&grandTotal>0){
@@ -3187,30 +3187,64 @@ function _buildChallanHalf(ch, client, co){
             cgst=+(base*0.09).toFixed(2); sgst=+(base*0.09).toFixed(2);
             displayTotal=+(base+cgst+sgst).toFixed(2);
           }
-          // Right column: Total Qty → (Sub Total + CGST + SGST if GST) → TOTAL
-          var bdr1='border-top:1px solid #bbb;';
-          var rightRows=
-            '<tr>'+
-              '<td class="tr" style="padding:3px 6px;font-size:8.5pt;font-weight:700;border-top:1.5px solid #555">Total Qty</td>'+
-              '<td class="tr" style="padding:3px 6px;font-size:8.5pt;border-top:1.5px solid #555">'+esc(qtySummaryStr)+'</td>'+
-            '</tr>';
+          // Non-GST: single full-width row with qty + total, then notes
+          if(!gstEnabled){
+            return '<tfoot>'+
+              '<tr>'+
+                '<td colspan="6" style="padding:0;border-top:2px solid #000">'+
+                  '<div style="display:flex;align-items:stretch">'+
+                    '<div style="flex:1;padding:4px 8px;font-size:9pt;font-weight:800;letter-spacing:.03em">'+
+                      'Total Qty : '+esc(qtySummaryStr)+
+                    '</div>'+
+                    '<div style="width:1.5px;background:#555;flex-shrink:0"></div>'+
+                    '<div style="padding:4px 8px;font-size:10.5pt;font-weight:800;white-space:nowrap">'+
+                      'TOTAL : &#8377; '+fmtPdf(displayTotal)+
+                    '</div>'+
+                  '</div>'+
+                '</td>'+
+              '</tr>'+
+              '<tr>'+
+                '<td colspan="6" style="padding:0;border-top:1px solid #bbb">'+
+                  '<div style="padding:2px 6px 1px;font-size:7.5pt;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.07em">Notes / Remarks</div>'+
+                  '<div contenteditable="true" style="padding:3px 6px;font-size:9pt;min-height:40px;outline:none">'+
+                    (ch&&ch.notes?esc(ch.notes):'')+
+                  '</div>'+
+                '</td>'+
+              '</tr>'+
+            '</tfoot>';
+          }
+          // Right column — financials with ₹
+          var bdr='border-top:1px solid #bbb;';
+          var rightRows='';
           if(gstEnabled&&grandTotal>0){
             rightRows+=
-              '<tr><td class="tr" style="padding:3px 6px;font-size:9pt;font-weight:600;'+bdr1+'">Sub Total</td><td class="tr" style="padding:3px 6px;font-size:9pt;'+bdr1+'">'+fmtPdf(base)+'</td></tr>'+
-              '<tr><td class="tr" style="padding:3px 6px;font-size:9pt;font-weight:600;'+bdr1+'">CGST @ 9%</td><td class="tr" style="padding:3px 6px;font-size:9pt;'+bdr1+'">'+fmtPdf(cgst)+'</td></tr>'+
-              '<tr><td class="tr" style="padding:3px 6px;font-size:9pt;font-weight:600;'+bdr1+'">SGST @ 9%</td><td class="tr" style="padding:3px 6px;font-size:9pt;'+bdr1+'">'+fmtPdf(sgst)+'</td></tr>';
+              '<tr><td class="tr" style="padding:3px 6px;font-size:9pt;font-weight:600;border-top:1.5px solid #555">Sub Total</td>'+
+                '<td class="tr" style="padding:3px 6px;font-size:9pt;border-top:1.5px solid #555">&#8377; '+fmtPdf(base)+'</td></tr>'+
+              '<tr><td class="tr" style="padding:3px 6px;font-size:9pt;font-weight:600;'+bdr+'">CGST @ 9%</td>'+
+                '<td class="tr" style="padding:3px 6px;font-size:9pt;'+bdr+'">&#8377; '+fmtPdf(cgst)+'</td></tr>'+
+              '<tr><td class="tr" style="padding:3px 6px;font-size:9pt;font-weight:600;'+bdr+'">SGST @ 9%</td>'+
+                '<td class="tr" style="padding:3px 6px;font-size:9pt;'+bdr+'">&#8377; '+fmtPdf(sgst)+'</td></tr>';
           }
           rightRows+=
             '<tr>'+
               '<td class="tr" style="padding:4px 6px;font-size:10pt;font-weight:800;border-top:2px solid #000">TOTAL</td>'+
-              '<td class="tr" style="padding:4px 6px;font-size:10pt;font-weight:800;border-top:2px solid #000">'+(displayTotal>0?fmtPdf(displayTotal):'')+'</td>'+
+              '<td class="tr" style="padding:4px 6px;font-size:10pt;font-weight:800;border-top:2px solid #000">'+
+                (displayTotal>0?'&#8377; '+fmtPdf(displayTotal):'')+
+              '</td>'+
             '</tr>';
-          // Right column row count determines left notes rowspan
-          var rightRowCount=1+(gstEnabled&&grandTotal>0?3:0)+1;
+          // Left column — Total Qty + NOTES/REMARKS label + editable notes
+          var leftCell=
+            '<div style="padding:5px 6px;font-size:8.5pt;font-weight:800;border-bottom:1.5px solid #555;letter-spacing:.03em">'+
+              'Total Qty : '+esc(qtySummaryStr)+
+            '</div>'+
+            '<div style="padding:2px 6px 1px;font-size:7.5pt;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.07em">Notes / Remarks</div>'+
+            '<div contenteditable="true" style="padding:3px 6px;font-size:9pt;min-height:40px;outline:none">'+
+              (ch&&ch.notes?esc(ch.notes):'')+
+            '</div>';
           return '<tfoot>'+
             '<tr>'+
-              '<td colspan="3" rowspan="'+rightRowCount+'" contenteditable="true" style="vertical-align:top;padding:4px 6px;font-size:9pt;border-top:1.5px solid #555;border-right:1.5px solid #555">'+(ch&&ch.notes?esc(ch.notes):'')+'</td>'+
-              '<td colspan="3" style="padding:0;border-top:1.5px solid #555">'+
+              '<td colspan="3" style="vertical-align:top;padding:0;border-top:1.5px solid #555;border-right:1.5px solid #555">'+leftCell+'</td>'+
+              '<td colspan="3" style="padding:0;vertical-align:top;border-top:1.5px solid #555">'+
                 '<table style="width:100%;border-collapse:collapse">'+rightRows+'</table>'+
               '</td>'+
             '</tr>'+
