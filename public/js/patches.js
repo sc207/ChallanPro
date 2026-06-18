@@ -107,53 +107,61 @@ deleteCompany = async function(id) {
 };
 
 saveChallan = async function(existingId) {
-  const rows = [...document.querySelectorAll('#prod-rows .prow')];
-  const items = [];
-  for (const row of rows) {
-    const pid = parseInt(row.querySelector('.prod-sel').value) || 0;
-    const price = parseFloat(row.querySelector('.price-f').value) || 0;
-    const qty = parseFloat(row.querySelector('.qty-f').value) || 0;
-    if (!pid || !qty) continue;
-    const p = APP.products.find(x => x.id === pid);
-    items.push({ pid, name: p.name, size: row.querySelector('.size-f').value, price, qty, unit: p.unit, lt: price * qty });
+  try {
+    const rows = [...document.querySelectorAll('#prod-rows .prow')];
+    const items = [];
+    for (const row of rows) {
+      const pid = parseInt(row.querySelector('.prod-sel').value) || 0;
+      const price = parseFloat(row.querySelector('.price-f').value) || 0;
+      const qty = parseFloat(row.querySelector('.qty-f').value) || 0;
+      if (!pid || !qty) continue;
+      const p = APP.products.find(x => x.id === pid);
+      items.push({ pid, name: p.name, size: row.querySelector('.size-f').value, price, qty, unit: p.unit, lt: price * qty });
+    }
+    if (!items.length) { alert('Add at least one product row with qty.'); return; }
+    const clId = parseInt(el('ch-client').value);
+    if (!clId) { alert('Select a client.'); return; }
+    const billNoVal = (el('ch-bill')?.value || '').trim();
+    const dup = APP.challans.some(c => c.billNo === billNoVal && c.id !== existingId);
+    if (dup) { alert('DC No. "' + billNoVal + '" already exists. Please use a different number.'); return; }
+    const baseTotal = items.reduce((s, it) => s + it.lt, 0);
+    const gstEnabled = el('ch-gst')?.checked ? 1 : 0;
+    const total = gstEnabled ? +(baseTotal * 1.18).toFixed(2) : baseTotal;
+    const seriesId = parseInt(el('ch-series')?.value) || null;
+    const showDcNo = el('ch-show-dcno')?.checked ? 1 : 0;
+    const payload = {
+      id: existingId || undefined,
+      billNo: billNoVal,
+      clientId: clId, date: el('ch-date').value, mode: el('ch-mode').value,
+      items, total, vehicleNo: el('ch-veh').value, receiver: el('ch-recv').value,
+      notes: el('ch-notes').value, status: 'draft',
+      gstEnabled,
+      refBillNo: el('ch-ref-bill')?.value || '',
+      seriesId,
+      showDcNo,
+    };
+    let ch;
+    if (existingId) {
+      ch = await API.put('/challans/' + existingId, payload);
+      const idx = APP.challans.findIndex(c => c.id === existingId);
+      if (idx >= 0) APP.challans[idx] = ch;
+    } else {
+      ch = await API.post('/challans?companyId=' + APP.activeCompanyId, payload);
+      ch = await API.post('/challans/' + ch.id + '/confirm');
+      APP.challans.unshift(ch);
+      if (seriesId) {
+        const si = APP.dcSeries.findIndex(x => x.id === seriesId);
+        if (si >= 0) APP.dcSeries[si] = { ...APP.dcSeries[si], nextNumber: APP.dcSeries[si].nextNumber + 1 };
+      }
+    }
+    clearAllocCache();
+    closeModal();
+    renderChallans();
+    renderDashboard();
+    toast(existingId ? 'Challan updated' : 'Challan saved');
+  } catch(e) {
+    toast(e.message || 'Failed to save challan', 't-del');
   }
-  if (!items.length) { alert('Add at least one product row with qty.'); return; }
-  const clId = parseInt(el('ch-client').value);
-  if (!clId) { alert('Select a client.'); return; }
-  const billNoVal = (el('ch-bill')?.value || '').trim();
-  const dup = APP.challans.some(c => c.billNo === billNoVal && c.id !== existingId);
-  if (dup) { alert('DC No. "' + billNoVal + '" already exists. Please use a different number.'); return; }
-  const baseTotal = items.reduce((s, it) => s + it.lt, 0);
-  const gstEnabled = el('ch-gst')?.checked ? 1 : 0;
-  const total = gstEnabled ? +(baseTotal * 1.18).toFixed(2) : baseTotal;
-  const seriesId = parseInt(el('ch-series')?.value) || null;
-  const showDcNo = el('ch-show-dcno')?.checked ? 1 : 0;
-  const payload = {
-    id: existingId || undefined,
-    billNo: billNoVal,
-    clientId: clId, date: el('ch-date').value, mode: el('ch-mode').value,
-    items, total, vehicleNo: el('ch-veh').value, receiver: el('ch-recv').value,
-    notes: el('ch-notes').value, status: 'draft',
-    gstEnabled,
-    refBillNo: el('ch-ref-bill')?.value || '',
-    seriesId,
-    showDcNo,
-  };
-  let ch;
-  if (existingId) {
-    ch = await API.put('/challans/' + existingId, payload);
-    const idx = APP.challans.findIndex(c => c.id === existingId);
-    if (idx >= 0) APP.challans[idx] = ch;
-  } else {
-    ch = await API.post('/challans?companyId=' + APP.activeCompanyId, payload);
-    ch = await API.post('/challans/' + ch.id + '/confirm');
-    APP.challans.unshift(ch);
-  }
-  clearAllocCache();
-  closeModal();
-  renderChallans();
-  renderDashboard();
-  toast(existingId ? 'Challan updated' : 'Challan saved');
 };
 
 saveClient = async function(existingId) {

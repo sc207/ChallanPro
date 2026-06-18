@@ -446,6 +446,19 @@
     </div>
   </div>
 </div>
+
+<!-- ═══ MODAL 2 (series manager overlay) ═══ -->
+<div class="modal-wrap" id="modal2">
+  <div class="modal-overlay" onclick="closeModal2()"></div>
+  <div class="modal-box wide" id="modal2-box">
+    <div class="modal-head">
+      <h2 id="modal2-title">—</h2>
+      <button onclick="closeModal2()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#94a3b8;line-height:1">×</button>
+    </div>
+    <div class="modal-body" id="modal2-body"></div>
+    <div class="modal-foot" id="modal2-foot"></div>
+  </div>
+</div>
 <script>
 // ═══════════════════════════════════════════════
 //  SIDEBAR TOGGLE (mobile)
@@ -664,8 +677,8 @@ function openSeriesManagerModal() {
       '<div><label style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase">Start#</label><input class="inp" id="sm-new-start" type="number" value="1" min="1" style="margin-top:4px"></div>'+
       '<button onclick="addSeriesRow()" style="height:38px;background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:0 14px;font-weight:600;font-size:13px;cursor:pointer">+ Add</button>'+
     '</div>';
-  openModal('Manage DC Series', html, null);
-  el('modal-foot').innerHTML = '<button class="btn btn-ghost" onclick="refreshSeriesAndClose()">Done</button>';
+  openModal2('Manage DC Series', html);
+  el('modal2-foot').innerHTML = '<button class="btn btn-ghost" onclick="refreshSeriesAndClose()">Done</button>';
 }
 async function addSeriesRow() {
   var name = (el('sm-new-name')?.value||'').trim();
@@ -699,7 +712,7 @@ async function deleteSeriesRow(id) {
     : '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:12px">No series yet</td></tr>';
   toast('Series deleted','t-del');
 }
-function refreshSeriesAndClose() { closeModal(); }
+function refreshSeriesAndClose() { closeModal2(); }
 
 function validateBillNo(input, selfId){
   var val=(input.value||'').trim();
@@ -1057,7 +1070,7 @@ function downloadDailyBookPDF() {
   doc.save('DailyBook-'+date+'.pdf');
 }
 
-function downloadLedgerPDF(clientId) {
+function downloadLedgerPDF(clientId, fromDate, toDate) {
   if (!window.jspdf) { alert('PDF library not loaded.'); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
@@ -1066,7 +1079,10 @@ function downloadLedgerPDF(clientId) {
   if (!cl) return;
   const bal = clientBalance(clientId);
 
-  pdfHeader(doc, 'Party Ledger  ·  ' + cl.name + '  ·  Generated: ' + fmtD(TODAY), false);
+  const filterLabel = (fromDate || toDate)
+    ? '  ·  ' + (fromDate ? fmtD(fromDate) : 'Start') + ' to ' + (toDate ? fmtD(toDate) : 'Today')
+    : '';
+  pdfHeader(doc, 'Party Ledger  ·  ' + cl.name + filterLabel + '  ·  Generated: ' + fmtD(TODAY), false);
 
   let y=43;
   doc.setFillColor(248,250,252); doc.rect(mg,y,W-2*mg,18,'F');
@@ -1076,15 +1092,15 @@ function downloadLedgerPDF(clientId) {
   doc.text(cl.name,mg+3,y+14);doc.text(cl.gst||'—',mg+90,y+14);doc.text(cl.phone||'—',mg+150,y+14);
   y+=24;
 
-  const events=[];
+  let allEvents=[];
   APP.challans.filter(c=>c.clientId===clientId&&c.mode==='credit').forEach(c=>{
     const desc=c.items.slice(0,3).map(i=>i.name).join(', ')+(c.items.length>3?' …':'');
-    events.push({date:c.date,type:'sale',amount:c.total,ref:c.billNo,desc});
+    allEvents.push({date:c.date,type:'sale',amount:c.total,ref:c.billNo,desc});
   });
   APP.payments.filter(p=>p.clientId===clientId).forEach(p=>{
-    events.push({date:p.date,type:'payment',amount:p.amount,ref:'PMT',desc:p.note||'Payment received',mode:p.mode});
+    allEvents.push({date:p.date,type:'payment',amount:p.amount,ref:'PMT',desc:p.note||'Payment received',mode:p.mode});
   });
-  events.sort((a,b)=>new Date(a.date)-new Date(b.date)||(a.type==='payment'?1:-1));
+  allEvents.sort((a,b)=>new Date(a.date)-new Date(b.date)||(a.type==='payment'?1:-1));
 
   const cl_ob = cl.openingBalance || 0;
   let running = cl_ob;
@@ -1096,11 +1112,24 @@ function downloadLedgerPDF(clientId) {
       'Rs.'+fmtPdf(Math.abs(cl_ob))+' '+(cl_ob > 0 ? 'Dr' : 'Cr')
     ]);
   }
+
+  // Advance running balance to account for events before the from-date filter
+  if (fromDate) {
+    allEvents.filter(e => e.date < fromDate).forEach(e => {
+      if (e.type==='sale') running+=e.amount; else running-=e.amount;
+    });
+  }
+  const events = allEvents.filter(e => {
+    if (fromDate && e.date < fromDate) return false;
+    if (toDate && e.date > toDate) return false;
+    return true;
+  });
+
   const txRows=events.map(e=>{
     if(e.type==='sale'){running+=e.amount;return[fmtD(e.date),e.ref+' — '+e.desc,'Rs.'+fmtPdf(e.amount),'—',running===0?'NIL':'Rs.'+fmtPdf(Math.abs(running))+' '+(running>0?'Dr':'Cr')];}
     else{running-=e.amount;return[fmtD(e.date),'Payment ('+e.mode.toUpperCase()+') — '+(e.desc||''),'—','Rs.'+fmtPdf(e.amount),running===0?'NIL':'Rs.'+fmtPdf(Math.abs(running))+' '+(running>0?'Dr':'Cr')];}
   });
-  const rows = obRows.concat(txRows);
+  const rows = (fromDate ? [] : obRows).concat(txRows);
 
   doc.autoTable({startY:y,margin:{left:mg,right:mg},
     head:[['Date','Particulars','Debit (Sales Rs.)','Credit (Payments Rs.)','Balance']],
@@ -1126,7 +1155,8 @@ function downloadLedgerPDF(clientId) {
   doc.text(fmtPdf(Math.abs(bal))+' '+(bal>0?'Dr':bal<0?'Cr':'NIL'),W-mg-3,y+8.5,{align:'right'});
 
   pdfFooter(doc, false);
-  doc.save('Ledger-'+cl.name.replace(/\s+/g,'-')+'-'+TODAY+'.pdf');
+  var suffix = (fromDate||toDate) ? '-'+( fromDate||'start')+'-to-'+(toDate||'today') : '';
+  doc.save('Ledger-'+cl.name.replace(/\s+/g,'-')+suffix+'-'+TODAY+'.pdf');
 }
 
 function renderWeeklyChart(){
@@ -1513,6 +1543,17 @@ function openModal(title, bodyHTML, saveHandler, wide){
   const sf=el('modal-foot').querySelector('#modal-save');
   if(sf) sf.style.display=saveHandler?'':'none';
 }
+function openModal2(title, bodyHTML) {
+  el('modal2-title').textContent = title;
+  el('modal2-body').innerHTML = bodyHTML;
+  el('modal2').classList.add('open');
+}
+function closeModal2() {
+  el('modal2').classList.remove('open');
+}
+
+var _ldFrom = '', _ldTo = '', _ldPage = 1;
+var _ldPageSize = 20;
 function closeModal(){ el('modal').classList.remove('open'); modalSaveHandler=null; }
 function handleSave(){ if(modalSaveHandler) modalSaveHandler(); }
 
@@ -1589,6 +1630,7 @@ function openChallanModal(id){
     '</div>'+
     '<div id="prod-rows">'+existingRows+'</div>'+
     '<button onclick="addProdRow()" class="btn btn-ghost" style="font-size:12px;padding:6px 12px;margin-top:4px"><i class="fas fa-plus" style="margin-right:4px"></i>Add Row</button>'+
+    '<div id="qty-summary" style="margin-top:8px;min-height:20px;font-size:11px;color:#475569;background:#f8fafc;border-radius:6px;padding:6px 10px;display:none"></div>'+
     '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;align-items:center;gap:12px">'+
       '<div style="font-size:12px;color:#64748b">Grand Total</div>'+
       '<div id="grand-total" style="font-size:20px;font-weight:800;color:#0f172a">₹0</div>'+
@@ -1632,10 +1674,20 @@ function calcRow(rowId){
 }
 function calcGrandTotal(){
   var tot=0;
+  var qtyMap={};
   document.querySelectorAll('#prod-rows .prow').forEach(function(row){
     var price=parseFloat(row.querySelector('.price-f').value)||0;
     var qty=parseFloat(row.querySelector('.qty-f').value)||0;
     tot+=price*qty;
+    if(qty>0){
+      var sel=row.querySelector('.prod-sel');
+      var pid=parseInt(sel&&sel.value)||0;
+      var prod=pid?APP.products.find(function(p){return p.id===pid;}):null;
+      var name=prod?prod.name:'Item';
+      var unit=prod&&prod.unit?prod.unit:'unit';
+      var key=name+'||'+unit;
+      qtyMap[key]=(qtyMap[key]||0)+qty;
+    }
   });
   var gstOn=el('ch-gst')&&el('ch-gst').checked;
   var ge=el('grand-total');
@@ -1649,6 +1701,22 @@ function calcGrandTotal(){
       '<div style="font-size:20px;font-weight:800;color:#0f172a">'+fmt(grand)+'</div>';
   } else {
     ge.textContent=fmt(tot);
+  }
+  var qs=el('qty-summary');
+  if(qs){
+    var keys=Object.keys(qtyMap);
+    if(keys.length){
+      var totalQty=keys.reduce(function(s,k){return s+qtyMap[k];},0);
+      var parts=keys.map(function(k){
+        var sp=k.split('||'); var n=parseFloat(qtyMap[k].toFixed(4));
+        return '<span style="font-weight:700;color:#1d4ed8">'+sp[0]+'</span>: '+n+' '+sp[1];
+      });
+      qs.innerHTML=parts.join('<span style="color:#cbd5e1;margin:0 6px">|</span>')+
+        '<span style="margin-left:10px;padding-left:10px;border-left:1px solid #cbd5e1;color:#0f172a;font-weight:700">Total Qty: '+parseFloat(totalQty.toFixed(4))+'</span>';
+      qs.style.display='';
+    } else {
+      qs.style.display='none';
+    }
   }
 }
 
@@ -1872,36 +1940,103 @@ function _openChallanViewOld(id){
 function openClientLedger(clientId){
   var cl=APP.clients.find(function(c){return c.id===clientId;});
   if(!cl) return;
-  var events=[];
-  APP.challans.filter(function(c){return c.clientId===clientId&&c.mode==='credit';}).forEach(function(c){
-    events.push({date:c.date,type:'sale',amount:c.total,ref:c.billNo,desc:c.items.map(function(i){return i.name;}).join(', '),id:c.id});
-  });
-  APP.payments.filter(function(p){return p.clientId===clientId;}).forEach(function(p){
-    events.push({date:p.date,type:'payment',amount:p.amount,ref:'—',desc:p.note||'Payment received',mode:p.mode});
-  });
-  events.sort(function(a,b){return new Date(a.date)-new Date(b.date)||(a.type==='payment'?1:-1);});
+  _ldPage=1;
 
-  var balance=0;
-  var rows=events.map(function(e){
-    if(e.type==='sale'){
-      balance+=e.amount;
-      return '<tr><td>'+fmtD(e.date)+'</td><td><strong style="color:#1d4ed8;cursor:pointer" onclick="openChallanView(\''+e.id+'\')">'+e.ref+'</strong><br><span style="font-size:11px;color:#94a3b8">'+e.desc+'</span></td><td style="color:#b91c1c;font-weight:700">'+fmt(e.amount)+'</td><td style="color:#94a3b8">—</td><td style="font-weight:800;color:'+(balance>0?'#b91c1c':'#15803d')+'">'+fmt(Math.abs(balance))+' '+(balance>0?'Dr':'Cr')+'</td></tr>';
-    } else {
-      balance-=e.amount;
-      return '<tr style="background:#f0fdf4"><td>'+fmtD(e.date)+'</td><td><span style="color:#15803d;font-weight:700">Payment Received</span><br><span style="font-size:11px;color:#64748b">'+e.desc+' <span class="badge badge-'+e.mode+'" style="font-size:10px">'+e.mode.toUpperCase()+'</span></span></td><td style="color:#94a3b8">—</td><td style="color:#15803d;font-weight:700">'+fmt(e.amount)+'</td><td style="font-weight:800;color:'+(balance>0?'#b91c1c':balance<0?'#15803d':'#475569')+'">'+(balance===0?'₹0 Nil':fmt(Math.abs(balance))+' '+(balance>0?'Dr':'Cr'))+'</td></tr>';
+  function buildAllEvents(){
+    var ev=[];
+    APP.challans.filter(function(c){return c.clientId===clientId&&c.mode==='credit';}).forEach(function(c){
+      ev.push({date:c.date,type:'sale',amount:c.total,ref:c.billNo,desc:c.items.map(function(i){return i.name;}).join(', '),id:c.id});
+    });
+    APP.payments.filter(function(p){return p.clientId===clientId;}).forEach(function(p){
+      ev.push({date:p.date,type:'payment',amount:p.amount,ref:'—',desc:p.note||'Payment received',mode:p.mode});
+    });
+    ev.sort(function(a,b){return new Date(a.date)-new Date(b.date)||(a.type==='payment'?1:-1);});
+    return ev;
+  }
+
+  function renderModalBody(){
+    var allEvents=buildAllEvents();
+    var ob=cl.openingBalance||0;
+    // Pre-advance running for pre-filter events
+    var running=ob;
+    if(_ldFrom){
+      allEvents.filter(function(e){return e.date<_ldFrom;}).forEach(function(e){
+        if(e.type==='sale') running+=e.amount; else running-=e.amount;
+      });
     }
-  }).join('');
+    var filtered=allEvents.filter(function(e){
+      if(_ldFrom&&e.date<_ldFrom) return false;
+      if(_ldTo&&e.date>_ldTo) return false;
+      return true;
+    });
+    var totalPages=Math.max(1,Math.ceil(filtered.length/_ldPageSize));
+    _ldPage=Math.min(_ldPage,totalPages);
+    var pageEvents=filtered.slice((_ldPage-1)*_ldPageSize,_ldPage*_ldPageSize);
 
-  var bal=clientBalance(clientId);
-  var html=
-    '<div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">'+
-      '<div><div style="font-weight:700;font-size:14px;color:#0f172a">'+cl.name+'</div><div style="font-size:11px;color:#64748b">'+cl.gst+' · '+cl.phone+'</div></div>'+
-      '<div style="text-align:right"><div style="font-size:11px;color:#94a3b8">'+(bal>0?'Outstanding Balance':bal<0?'Advance Balance':'Balance')+'</div><div style="font-size:18px;font-weight:800;color:'+(bal>0?'#b91c1c':bal<0?'#15803d':'#475569')+'">'+fmt(Math.abs(bal))+' '+(bal>0?'Dr':bal<0?'Cr':'')+'</div></div>'+
-    '</div>'+
-    (events.length?'<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Particulars</th><th style="color:#b91c1c">Debit (Sales)</th><th style="color:#15803d">Credit (Payments)</th><th>Balance</th></tr></thead><tbody>'+rows+'</tbody></table></div><div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><button class="btn" style="background:#dc5800;color:#fff" onclick="downloadLedgerPDF('+clientId+')"><i class="fas fa-file-pdf" style="margin-right:5px"></i>Download Ledger PDF</button><button class="btn btn-success" onclick="closeModal();openPaymentModal('+clientId+')"><i class="fas fa-rupee-sign" style="margin-right:5px"></i>Record Payment</button></div>':'<div style="text-align:center;padding:30px;color:#94a3b8">No credit transactions yet.</div>');
+    var obRow='';
+    if(ob!==0&&!_ldFrom){
+      var obBal=Math.abs(ob);
+      obRow='<tr style="background:#fffbeb">'+
+        '<td>—</td>'+
+        '<td><strong>Opening Balance</strong></td>'+
+        '<td style="color:#b91c1c;font-weight:700">'+(ob>0?fmt(obBal):'—')+'</td>'+
+        '<td style="color:#15803d;font-weight:700">'+(ob<0?fmt(obBal):'—')+'</td>'+
+        '<td style="font-weight:800;color:'+(ob>0?'#b91c1c':'#15803d')+'">'+fmt(obBal)+' '+(ob>0?'Dr':'Cr')+'</td>'+
+      '</tr>';
+    }
+    var rows=pageEvents.map(function(e){
+      var bl;
+      if(e.type==='sale'){
+        running+=e.amount;
+        bl=running>0?'#b91c1c':running<0?'#15803d':'#475569';
+        return '<tr><td>'+fmtD(e.date)+'</td><td><strong style="color:#1d4ed8;cursor:pointer" onclick="openChallanView(\''+e.id+'\')">'+e.ref+'</strong><br><span style="font-size:11px;color:#94a3b8">'+e.desc+'</span></td><td style="color:#b91c1c;font-weight:700">'+fmt(e.amount)+'</td><td style="color:#94a3b8">—</td><td style="font-weight:800;color:'+bl+'">'+fmt(Math.abs(running))+' '+(running>0?'Dr':running<0?'Cr':'Nil')+'</td></tr>';
+      } else {
+        running-=e.amount;
+        bl=running>0?'#b91c1c':running<0?'#15803d':'#475569';
+        return '<tr style="background:#f0fdf4"><td>'+fmtD(e.date)+'</td><td><span style="color:#15803d;font-weight:700">Payment Received</span><br><span style="font-size:11px;color:#64748b">'+e.desc+' <span class="badge badge-'+e.mode+'" style="font-size:10px">'+e.mode.toUpperCase()+'</span></span></td><td style="color:#94a3b8">—</td><td style="color:#15803d;font-weight:700">'+fmt(e.amount)+'</td><td style="font-weight:800;color:'+bl+'">'+fmt(Math.abs(running))+' '+(running>0?'Dr':running<0?'Cr':'Nil')+'</td></tr>';
+      }
+    }).join('');
 
-  openModal('Party Ledger — '+cl.name, html, null, true);
+    var bal=clientBalance(clientId);
+    var filterUI='<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">'+
+      '<label style="font-size:12px;color:#64748b">From</label>'+
+      '<input type="date" value="'+_ldFrom+'" onchange="_ldFrom=this.value;_ldPage=1;_reLedgerModal()" style="font-size:12px;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px">'+
+      '<label style="font-size:12px;color:#64748b">To</label>'+
+      '<input type="date" value="'+_ldTo+'" onchange="_ldTo=this.value;_ldPage=1;_reLedgerModal()" style="font-size:12px;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px">'+
+      '<button onclick="_ldFrom=\'\';_ldTo=\'\';_ldPage=1;_reLedgerModal()" class="btn btn-ghost" style="font-size:12px;padding:4px 10px">Clear</button>'+
+    '</div>';
+
+    var pagination='<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:6px">'+
+      '<span style="font-size:12px;color:#64748b">'+filtered.length+' entries · Page '+_ldPage+' of '+totalPages+'</span>'+
+      '<div style="display:flex;gap:6px">'+
+        '<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="_ldPage=Math.max(1,_ldPage-1);_reLedgerModal()" '+((_ldPage<=1)?'disabled':'')+'>‹ Prev</button>'+
+        '<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="_ldPage=Math.min('+totalPages+',_ldPage+1);_reLedgerModal()" '+((_ldPage>=totalPages)?'disabled':'')+'>Next ›</button>'+
+      '</div>'+
+    '</div>';
+
+    var pdfBtns='<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+      '<button class="btn" style="background:#dc5800;color:#fff;font-size:12px" onclick="downloadLedgerPDF('+clientId+')"><i class="fas fa-file-pdf" style="margin-right:4px"></i>Full PDF</button>'+
+      ((_ldFrom||_ldTo)?'<button class="btn" style="background:#7c3aed;color:#fff;font-size:12px" onclick="downloadLedgerPDF('+clientId+',\''+_ldFrom+'\',\''+_ldTo+'\')"><i class="fas fa-filter" style="margin-right:4px"></i>Filtered PDF</button>':'')+
+      '<button class="btn btn-success" style="font-size:12px" onclick="closeModal();openPaymentModal('+clientId+')"><i class="fas fa-rupee-sign" style="margin-right:4px"></i>Record Payment</button>'+
+    '</div>';
+
+    el('modal-body').innerHTML=
+      '<div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'+
+        '<div><div style="font-weight:700;font-size:14px;color:#0f172a">'+cl.name+'</div><div style="font-size:11px;color:#64748b">'+cl.gst+' · '+cl.phone+'</div></div>'+
+        '<div style="text-align:right"><div style="font-size:11px;color:#94a3b8">'+(bal>0?'Outstanding':bal<0?'Advance':'Balance')+'</div><div style="font-size:18px;font-weight:800;color:'+(bal>0?'#b91c1c':bal<0?'#15803d':'#475569')+'">'+fmt(Math.abs(bal))+' '+(bal>0?'Dr':bal<0?'Cr':'')+'</div></div>'+
+      '</div>'+
+      filterUI+
+      (allEvents.length?
+        '<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Particulars</th><th style="color:#b91c1c">Debit (Sales)</th><th style="color:#15803d">Credit (Payments)</th><th>Balance</th></tr></thead><tbody>'+obRow+rows+'</tbody></table></div>'+
+        (totalPages>1?pagination:'')+
+        '<div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'+pdfBtns+'</div>'
+      :'<div style="text-align:center;padding:30px;color:#94a3b8">No credit transactions yet.</div>');
+  }
+
+  window._reLedgerModal = renderModalBody;
+  openModal('Party Ledger — '+cl.name, '', null, true);
   setTimeout(function(){ var sf=el('modal-foot').querySelector('#modal-save'); if(sf) sf.style.display='none'; },0);
+  renderModalBody();
 }
 
 // ═══ DELETE ═══
@@ -2591,6 +2726,7 @@ var currentClientId = null, lastPageBeforeDetail = 'customers';
 function openCustomerDetail(clientId, fromPage) {
   currentClientId = clientId;
   lastPageBeforeDetail = fromPage || 'customers';
+  _ldFrom = ''; _ldTo = ''; _ldPage = 1;
   nav('customer-detail');
 }
 function goBackFromDetail() {
@@ -2680,39 +2816,55 @@ function renderCdPayments() {
 function renderCdLedger() {
   var cId = currentClientId;
   var pane=el('cdp-ledger'); if(!pane) return;
-  var events=[];
+  var cl=APP.clients.find(function(c){return c.id===cId;});
+  if(!cl) return;
+  var ob=cl.openingBalance||0;
+
+  var allEvents=[];
   APP.challans.filter(function(c){return c.clientId===cId&&c.mode==='credit';}).forEach(function(c){
-    events.push({date:c.date,type:'sale',amount:c.total,ref:c.billNo,desc:c.items.map(function(i){return i.name;}).join(', '),id:c.id});
+    allEvents.push({date:c.date,type:'sale',amount:c.total,ref:c.billNo,desc:c.items.map(function(i){return i.name;}).join(', '),id:c.id});
   });
   APP.payments.filter(function(p){return p.clientId===cId;}).forEach(function(p){
-    events.push({date:p.date,type:'payment',amount:p.amount,ref:'PMT',desc:p.note||'Payment received',mode:p.mode});
+    allEvents.push({date:p.date,type:'payment',amount:p.amount,ref:'PMT',desc:p.note||'Payment received',mode:p.mode});
   });
-  events.sort(function(a,b){return new Date(a.date)-new Date(b.date)||(a.type==='payment'?1:-1);});
-  var bal=clientBalance(cId);
-  var totalDebit=events.filter(function(e){return e.type==='sale';}).reduce(function(s,e){return s+e.amount;},0);
-  var totalCredit=events.filter(function(e){return e.type==='payment';}).reduce(function(s,e){return s+e.amount;},0);
-  function balLabel(v) {
-    if(v===0) return {
-      text:'NIL',
-      color:'#475569',
-      badge:'<span style="display:inline-block;margin-left:5px;font-size:9px;font-weight:800;padding:1px 5px;border:1px solid #94a3b8;border-radius:3px;color:#475569;letter-spacing:.04em">CLEAR</span>',
-      sub:''
-    };
-    if(v>0) return {
-      text:fmt(v),
-      color:'#b91c1c',
-      badge:'<span style="display:inline-block;margin-left:5px;font-size:9px;font-weight:800;padding:1px 5px;border:1.5px solid #b91c1c;border-radius:3px;color:#b91c1c;letter-spacing:.04em">TO COLLECT</span>',
-      sub:''
-    };
-    return {
-      text:'('+fmt(Math.abs(v))+')',
-      color:'#15803d',
-      badge:'<span style="display:inline-block;margin-left:5px;font-size:9px;font-weight:800;padding:1px 5px;border:1.5px solid #15803d;border-radius:3px;color:#15803d;letter-spacing:.04em">ADVANCE</span>',
-      sub:''
-    };
+  allEvents.sort(function(a,b){return new Date(a.date)-new Date(b.date)||(a.type==='payment'?1:-1);});
+
+  // Pre-advance running balance for events before the from-date
+  var running=ob;
+  if(_ldFrom){
+    allEvents.filter(function(e){return e.date<_ldFrom;}).forEach(function(e){
+      if(e.type==='sale') running+=e.amount; else running-=e.amount;
+    });
   }
-  var running=0;
-  var rows=events.map(function(e){
+  var filtered=allEvents.filter(function(e){
+    if(_ldFrom&&e.date<_ldFrom) return false;
+    if(_ldTo&&e.date>_ldTo) return false;
+    return true;
+  });
+  var totalPages=Math.max(1,Math.ceil(filtered.length/_ldPageSize));
+  _ldPage=Math.min(_ldPage,totalPages);
+  var pageEvents=filtered.slice((_ldPage-1)*_ldPageSize,_ldPage*_ldPageSize);
+
+  var bal=clientBalance(cId);
+
+  function balLabel(v) {
+    if(v===0) return {text:'NIL',color:'#475569',badge:'<span style="display:inline-block;margin-left:5px;font-size:9px;font-weight:800;padding:1px 5px;border:1px solid #94a3b8;border-radius:3px;color:#475569;letter-spacing:.04em">CLEAR</span>'};
+    if(v>0)  return {text:fmt(v),color:'#b91c1c',badge:'<span style="display:inline-block;margin-left:5px;font-size:9px;font-weight:800;padding:1px 5px;border:1.5px solid #b91c1c;border-radius:3px;color:#b91c1c;letter-spacing:.04em">TO COLLECT</span>'};
+    return {text:'('+fmt(Math.abs(v))+')',color:'#15803d',badge:'<span style="display:inline-block;margin-left:5px;font-size:9px;font-weight:800;padding:1px 5px;border:1.5px solid #15803d;border-radius:3px;color:#15803d;letter-spacing:.04em">ADVANCE</span>'};
+  }
+
+  var obRow='';
+  if(ob!==0&&!_ldFrom){
+    obRow='<tr style="background:#fffbeb">'+
+      '<td>—</td><td><strong>Opening Balance</strong></td>'+
+      '<td style="color:#b91c1c;font-weight:700">'+(ob>0?fmt(ob):'—')+'</td>'+
+      '<td style="color:#15803d;font-weight:700">'+(ob<0?fmt(Math.abs(ob)):'—')+'</td>'+
+      '<td style="font-weight:800;color:'+(ob>0?'#b91c1c':'#15803d')+'">'+fmt(Math.abs(ob))+' '+(ob>0?'Dr':'Cr')+
+        '<span style="display:inline-block;margin-left:5px;font-size:9px;font-weight:800;padding:1px 5px;border:1.5px solid currentColor;border-radius:3px;letter-spacing:.04em">OPENING</span>'+
+      '</td></tr>';
+  }
+
+  var rows=pageEvents.map(function(e){
     var bl;
     if(e.type==='sale'){
       running+=e.amount; bl=balLabel(running);
@@ -2730,25 +2882,50 @@ function renderCdLedger() {
         '<td style="font-weight:800;color:'+bl.color+'">'+bl.text+bl.badge+'</td></tr>';
     }
   }).join('');
+
+  var pageDebit=pageEvents.filter(function(e){return e.type==='sale';}).reduce(function(s,e){return s+e.amount;},0);
+  var pageCredit=pageEvents.filter(function(e){return e.type==='payment';}).reduce(function(s,e){return s+e.amount;},0);
   var closingBl=balLabel(bal);
   var totalRow='<tr style="background:#0f172a;color:#fff;font-weight:800">'+
-    '<td style="padding:11px 13px;font-size:12px;text-transform:uppercase;letter-spacing:.04em" colspan="2">Total</td>'+
-    '<td style="padding:11px 13px;color:#fca5a5;font-size:14px">'+fmt(totalDebit)+'</td>'+
-    '<td style="padding:11px 13px;color:#4ade80;font-size:14px">'+fmt(totalCredit)+'</td>'+
+    '<td style="padding:11px 13px;font-size:12px;text-transform:uppercase;letter-spacing:.04em" colspan="2">Page Total</td>'+
+    '<td style="padding:11px 13px;color:#fca5a5;font-size:14px">'+fmt(pageDebit)+'</td>'+
+    '<td style="padding:11px 13px;color:#4ade80;font-size:14px">'+fmt(pageCredit)+'</td>'+
     '<td style="padding:11px 13px;font-size:14px;color:'+closingBl.color+'">'+closingBl.text+
       '<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:800;padding:1px 5px;border:1.5px solid currentColor;border-radius:3px;letter-spacing:.04em">'+(bal>0?'TO COLLECT':bal<0?'ADVANCE':'CLEAR')+'</span>'+
-    '</td>'+
-  '</tr>';
+    '</td></tr>';
+
+  var filterUI='<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">'+
+    '<label style="font-size:12px;color:#64748b">From</label>'+
+    '<input type="date" value="'+_ldFrom+'" onchange="_ldFrom=this.value;_ldPage=1;renderCdLedger()" style="font-size:12px;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px">'+
+    '<label style="font-size:12px;color:#64748b">To</label>'+
+    '<input type="date" value="'+_ldTo+'" onchange="_ldTo=this.value;_ldPage=1;renderCdLedger()" style="font-size:12px;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px">'+
+    '<button onclick="_ldFrom=\'\';_ldTo=\'\';_ldPage=1;renderCdLedger()" class="btn btn-ghost" style="font-size:12px;padding:4px 10px">Clear</button>'+
+  '</div>';
+
+  var pagination='<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:6px">'+
+    '<span style="font-size:12px;color:#64748b">'+filtered.length+' entries · Page '+_ldPage+' of '+totalPages+'</span>'+
+    '<div style="display:flex;gap:6px">'+
+      '<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="_ldPage=Math.max(1,_ldPage-1);renderCdLedger()" '+((_ldPage<=1)?'disabled':'')+'>‹ Prev</button>'+
+      '<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="_ldPage=Math.min('+totalPages+',_ldPage+1);renderCdLedger()" '+((_ldPage>=totalPages)?'disabled':'')+'>Next ›</button>'+
+    '</div>'+
+  '</div>';
+
+  var pdfBtns='<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+    '<button class="btn" style="background:#dc5800;color:#fff;font-size:12px;padding:6px 12px" onclick="downloadLedgerPDF('+cId+')"><i class="fas fa-file-pdf" style="margin-right:4px"></i>Full PDF</button>'+
+    ((_ldFrom||_ldTo)?'<button class="btn" style="background:#7c3aed;color:#fff;font-size:12px;padding:6px 12px" onclick="downloadLedgerPDF('+cId+',\''+_ldFrom+'\',\''+_ldTo+'\')"><i class="fas fa-filter" style="margin-right:4px"></i>Filtered PDF</button>':'')+
+    '<button class="btn btn-success btn-sm" onclick="openPaymentModal('+cId+')"><i class="fas fa-rupee-sign" style="margin-right:4px"></i>Record Payment</button>'+
+  '</div>';
+
   pane.innerHTML='<div class="card">'+
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">'+
       '<div style="font-weight:700;font-size:13px;color:#0f172a">Account Statement</div>'+
-      '<div style="display:flex;gap:8px">'+
-        '<button class="btn" style="background:#dc5800;color:#fff;font-size:12px;padding:6px 12px" onclick="downloadLedgerPDF('+cId+')"><i class="fas fa-file-pdf" style="margin-right:4px"></i>Download PDF</button>'+
-        '<button class="btn btn-success btn-sm" onclick="openPaymentModal('+cId+')"><i class="fas fa-rupee-sign" style="margin-right:4px"></i>Record Payment</button>'+
-      '</div>'+
+      pdfBtns+
     '</div>'+
-    (events.length?'<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Particulars</th><th style="color:#b91c1c">Debit (Sales)</th><th style="color:#15803d">Credit (Payments)</th><th>Balance</th></tr></thead><tbody>'+rows+'</tbody><tfoot>'+totalRow+'</tfoot></table></div>':
-    '<div style="text-align:center;padding:30px;color:#94a3b8">No credit transactions yet.</div>')+
+    filterUI+
+    (allEvents.length?
+      '<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Particulars</th><th style="color:#b91c1c">Debit (Sales)</th><th style="color:#15803d">Credit (Payments)</th><th>Balance</th></tr></thead><tbody>'+obRow+rows+'</tbody><tfoot>'+totalRow+'</tfoot></table></div>'+
+      (totalPages>1?pagination:''):
+      '<div style="text-align:center;padding:30px;color:#94a3b8">No credit transactions yet.</div>')+
     '</div>';
 }
 
