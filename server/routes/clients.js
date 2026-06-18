@@ -21,8 +21,8 @@ router.post('/', requireCompanyId, async (req, res) => {
   try {
     const b = req.body;
     const result = await run(
-      'INSERT INTO clients (company_id,name,address,phone,email,gstin,opening_balance,last_asked) VALUES (?,?,?,?,?,?,?,?)',
-      [req.companyId, b.name, b.address||'', b.phone||'', b.email||'', b.gstin||b.gst||'', b.openingBalance??0, b.lastAsked||null]
+      'INSERT INTO clients (company_id,name,address,phone,email,gstin,opening_balance,opening_balance_date,last_asked) VALUES (?,?,?,?,?,?,?,?,?)',
+      [req.companyId, b.name, b.address||'', b.phone||'', b.email||'', b.gstin||b.gst||'', b.openingBalance??0, b.openingBalanceDate||null, b.lastAsked||null]
     );
     const id = result.lastInsertRowid;
     const row = await queryOne('SELECT * FROM clients WHERE id = ?', [id]);
@@ -40,8 +40,8 @@ router.put('/:id', async (req, res) => {
     const existing = await queryOne('SELECT * FROM clients WHERE id = ? AND is_deleted = 0', [id]);
     if (!existing) return res.status(404).json({ error: 'Not found' });
     await run(
-      'UPDATE clients SET name=?,address=?,phone=?,email=?,gstin=?,opening_balance=?,last_asked=? WHERE id=?',
-      [b.name, b.address||'', b.phone||'', b.email||'', b.gstin||b.gst||'', b.openingBalance??0, b.lastAsked||null, id]
+      'UPDATE clients SET name=?,address=?,phone=?,email=?,gstin=?,opening_balance=?,opening_balance_date=?,last_asked=? WHERE id=?',
+      [b.name, b.address||'', b.phone||'', b.email||'', b.gstin||b.gst||'', b.openingBalance??0, b.openingBalanceDate||null, b.lastAsked||null, id]
     );
     const row = await queryOne('SELECT * FROM clients WHERE id = ?', [id]);
     await logAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', entityType: 'client', entityId: String(id), companyId: existing.company_id, details: { name: b.name } });

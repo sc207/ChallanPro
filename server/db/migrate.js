@@ -32,6 +32,8 @@ async function migrateSchema() {
     `ALTER TABLE challans ADD COLUMN series_id INTEGER`,
     `ALTER TABLE challans ADD COLUMN show_dc_no INTEGER DEFAULT 1`,
     `ALTER TABLE dc_series ADD COLUMN series_type TEXT DEFAULT 'normal'`,
+    `ALTER TABLE clients ADD COLUMN opening_balance_date TEXT DEFAULT NULL`,
+    `ALTER TABLE challans ADD COLUMN challan_label TEXT DEFAULT 'DELIVERY CHALLAN'`,
   ];
   for (const sql of safeAlter) {
     try { await run(sql); } catch (_) {}

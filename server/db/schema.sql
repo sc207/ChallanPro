@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS clients (
   email TEXT DEFAULT '',
   gstin TEXT DEFAULT '',
   opening_balance REAL DEFAULT 0,
+  opening_balance_date TEXT DEFAULT NULL,
   last_asked TEXT,
   is_deleted INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now'))
@@ -75,6 +76,7 @@ CREATE TABLE IF NOT EXISTS challans (
   vehicle_no TEXT DEFAULT '',
   receiver TEXT DEFAULT '',
   notes TEXT DEFAULT '',
+  challan_label TEXT DEFAULT 'DELIVERY CHALLAN',
   is_deleted INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
   confirmed_at TEXT

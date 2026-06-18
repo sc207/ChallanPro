@@ -590,7 +590,7 @@ function markAskedToday(clientId) {
 // ═══════════════════════════════════════════════
 function fmt(n) { return '₹'+Math.abs(n).toLocaleString('en-IN'); }
 function fmtPdf(n) {
-  return Math.abs(n).toLocaleString('en-IN');
+  return Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 function fmtD(d) { return d ? new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—'; }
 function clientName(id) { return APP.clients.find(c=>c.id===id)?.name || '—'; }
@@ -1103,10 +1103,11 @@ function downloadLedgerPDF(clientId, fromDate, toDate) {
   allEvents.sort((a,b)=>new Date(a.date)-new Date(b.date)||(a.type==='payment'?1:-1));
 
   const cl_ob = cl.openingBalance || 0;
+  const cl_ob_date = cl.openingBalanceDate || null;
   let running = cl_ob;
   const obRows = [];
   if (cl_ob !== 0) {
-    obRows.push(['—','Opening Balance',
+    obRows.push([cl_ob_date ? fmtD(cl_ob_date) : '—','Opening Balance',
       cl_ob > 0 ? 'Rs.'+fmtPdf(cl_ob) : '—',
       cl_ob < 0 ? 'Rs.'+fmtPdf(Math.abs(cl_ob)) : '—',
       'Rs.'+fmtPdf(Math.abs(cl_ob))+' '+(cl_ob > 0 ? 'Dr' : 'Cr')
@@ -1618,7 +1619,8 @@ function openChallanModal(id){
           'Show DC No. on print'+
         '</label>'+
       '</div>'+
-    '</div>'+
+      (function(){var cur=(ch&&ch.challanLabel)||'DELIVERY CHALLAN';return'<div class="form-row" style="grid-column:1/-1"><label>Document Label</label><select class="inp" id="ch-doc-label"><option value="DELIVERY CHALLAN"'+(cur==='DELIVERY CHALLAN'?' selected':'')+'>DELIVERY CHALLAN</option><option value="TAX INVOICE"'+(cur==='TAX INVOICE'?' selected':'')+'>TAX INVOICE</option></select></div>';})()
+    +'</div>'+
     '<div style="margin:14px 0 8px;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em">Products / Items</div>'+
     '<div style="display:grid;grid-template-columns:2fr 90px 90px 90px 100px 34px;gap:7px;margin-bottom:6px">'+
       '<div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase">Product</div>'+
@@ -1683,17 +1685,15 @@ function calcGrandTotal(){
       var sel=row.querySelector('.prod-sel');
       var pid=parseInt(sel&&sel.value)||0;
       var prod=pid?APP.products.find(function(p){return p.id===pid;}):null;
-      var name=prod?prod.name:'Item';
-      var unit=prod&&prod.unit?prod.unit:'unit';
-      var key=name+'||'+unit;
-      qtyMap[key]=(qtyMap[key]||0)+qty;
+      var unit=(prod&&prod.unit?prod.unit:'unit').trim().toUpperCase();
+      qtyMap[unit]=(qtyMap[unit]||0)+qty;
     }
   });
   var gstOn=el('ch-gst')&&el('ch-gst').checked;
   var ge=el('grand-total');
   if(!ge) return;
   if(gstOn){
-    var cgst=tot*0.09, sgst=tot*0.09, grand=tot+cgst+sgst;
+    var cgst=+(tot*0.09).toFixed(2), sgst=+(tot*0.09).toFixed(2), grand=tot+cgst+sgst;
     ge.innerHTML=
       '<div style="font-size:12px;color:#64748b;margin-bottom:3px">Sub-total: <strong>'+fmt(tot)+'</strong></div>'+
       '<div style="font-size:12px;color:#64748b;margin-bottom:3px">CGST 9%: <strong>'+fmt(cgst)+'</strong></div>'+
@@ -1706,13 +1706,11 @@ function calcGrandTotal(){
   if(qs){
     var keys=Object.keys(qtyMap);
     if(keys.length){
-      var totalQty=keys.reduce(function(s,k){return s+qtyMap[k];},0);
-      var parts=keys.map(function(k){
-        var sp=k.split('||'); var n=parseFloat(qtyMap[k].toFixed(4));
-        return '<span style="font-weight:700;color:#1d4ed8">'+sp[0]+'</span>: '+n+' '+sp[1];
+      var parts=keys.map(function(u){
+        return '<span style="font-weight:700;color:#1d4ed8">'+u+'</span>: '+parseFloat(qtyMap[u].toFixed(4));
       });
-      qs.innerHTML=parts.join('<span style="color:#cbd5e1;margin:0 6px">|</span>')+
-        '<span style="margin-left:10px;padding-left:10px;border-left:1px solid #cbd5e1;color:#0f172a;font-weight:700">Total Qty: '+parseFloat(totalQty.toFixed(4))+'</span>';
+      qs.innerHTML='<span style="color:#64748b;font-weight:600;margin-right:6px">Total Qty:</span>'+
+        parts.join('<span style="color:#cbd5e1;margin:0 8px">|</span>');
       qs.style.display='';
     } else {
       qs.style.display='none';
@@ -1767,6 +1765,7 @@ function openClientModal(id){
       '<div class="form-row"><label>Last Asked for Payment</label><input class="inp" id="cl-asked" type="date" value="'+(cl&&cl.lastAsked?cl.lastAsked:'')+'"></div>'+
       '<div class="form-row"><label>Opening Balance (₹)</label><input class="inp" id="cl-ob-amt" type="number" min="0" step="0.01" value="'+Math.abs(cl&&cl.openingBalance?cl.openingBalance:0)+'" placeholder="0.00"></div>'+
       '<div class="form-row"><label>Balance Type</label><select class="inp" id="cl-ob-type"><option value="dr"'+((!cl||!cl.openingBalance||cl.openingBalance>=0)?' selected':'')+'>Dr — To Collect (client owes)</option><option value="cr"'+(cl&&cl.openingBalance<0?' selected':'')+'>Cr — Advance (client paid)</option></select></div>'+
+      '<div class="form-row"><label>Opening Balance Date</label><input class="inp" id="cl-ob-date" type="date" value="'+(cl&&cl.openingBalanceDate?cl.openingBalanceDate:'')+'" placeholder="e.g. 01 Apr 2025"></div>'+
     '</div>';
   openModal(cl?'Edit — '+cl.name:'Add New Client', html, function(){saveClient(id);});
 }
@@ -1976,8 +1975,9 @@ function openClientLedger(clientId){
     var obRow='';
     if(ob!==0&&!_ldFrom){
       var obBal=Math.abs(ob);
+      var obDateStr=cl.openingBalanceDate?fmtD(cl.openingBalanceDate):'—';
       obRow='<tr style="background:#fffbeb">'+
-        '<td>—</td>'+
+        '<td>'+obDateStr+'</td>'+
         '<td><strong>Opening Balance</strong></td>'+
         '<td style="color:#b91c1c;font-weight:700">'+(ob>0?fmt(obBal):'—')+'</td>'+
         '<td style="color:#15803d;font-weight:700">'+(ob<0?fmt(obBal):'—')+'</td>'+
@@ -2855,8 +2855,9 @@ function renderCdLedger() {
 
   var obRow='';
   if(ob!==0&&!_ldFrom){
+    var obDateStr=cl.openingBalanceDate?fmtD(cl.openingBalanceDate):'—';
     obRow='<tr style="background:#fffbeb">'+
-      '<td>—</td><td><strong>Opening Balance</strong></td>'+
+      '<td>'+obDateStr+'</td><td><strong>Opening Balance</strong></td>'+
       '<td style="color:#b91c1c;font-weight:700">'+(ob>0?fmt(ob):'—')+'</td>'+
       '<td style="color:#15803d;font-weight:700">'+(ob<0?fmt(Math.abs(ob)):'—')+'</td>'+
       '<td style="font-weight:800;color:'+(ob>0?'#b91c1c':'#15803d')+'">'+fmt(Math.abs(ob))+' '+(ob>0?'Dr':'Cr')+
@@ -3012,6 +3013,29 @@ function refreshAll() {
 // ═══════════════════════════════════════════════
 function closeChallanPrint(){
   var ov=el('cp-ov'); if(ov) ov.classList.remove('open');
+  setCpPaperSize('a5');
+}
+
+var _cpPaperSize='a5';
+function setCpPaperSize(size){
+  _cpPaperSize=size;
+  var ov=document.getElementById('cp-pg-override');
+  if(ov) ov.remove();
+  if(size==='a4'){
+    var s=document.createElement('style');
+    s.id='cp-pg-override';
+    s.textContent='@page{margin:0;size:A4 portrait}';
+    document.head.appendChild(s);
+  }
+  var sheet=el('cp-sheet');
+  if(sheet){
+    if(size==='a4'){ sheet.style.maxWidth='790px'; sheet.style.minHeight='1120px'; }
+    else           { sheet.style.maxWidth='';      sheet.style.minHeight='';      }
+  }
+  ['a5','a4'].forEach(function(sz){
+    var btn=el('cp-sz-'+sz);
+    if(btn) btn.style.background=sz===size?'#0f172a':'#374151';
+  });
 }
 
 function _buildChallanHalf(ch, client, co){
@@ -3067,13 +3091,16 @@ function _buildChallanHalf(ch, client, co){
     }
   }
 
-  // Black address bar
-  var addrBar=esc(formatCompanyAddress(co)||co.address||'');
+  // Black address bar — 2 lines: address | mobiles + GSTIN
+  var addrLine1=esc(formatCompanyAddress(co)||co.address||'');
   var mob=co.mobile||co.phone||'';
   var mob2=co.mobile2||co.phone2||'';
   var gst=co.gstin||co.gst||'';
-  if(mob) addrBar+='&nbsp;&nbsp;M : '+esc(mob);
-  if(mob2) addrBar+=' / '+esc(mob2);
+  var addrLine2='';
+  if(mob) addrLine2+='M : '+esc(mob);
+  if(mob2) addrLine2+=' | '+esc(mob2);
+  if(gst) addrLine2+=(addrLine2?'&nbsp;&nbsp;&nbsp;&nbsp;':'')+'GSTIN : '+esc(gst);
+  var addrBar=addrLine1+(addrLine2?'<br>'+addrLine2:'');
 
   // GST breakdown rows for tfoot
   var gstEnabled=ch&&ch.gstEnabled;
@@ -3090,7 +3117,7 @@ function _buildChallanHalf(ch, client, co){
     // Religious text + DELIVERY CHALLAN label
     '<div class="cph-top" style="position:relative;">'+
       '<div class="cph-reli">&#2404;&#2404; &#2358;&#2381;&#2352;&#2368; &#2327;&#2339;&#2375;&#2358;&#2366;&#2351; &#2344;&#2350;&#2307; &#2404;&#2404;</div>'+
-      '<div class="cph-dlabel" style="position:absolute;right:10px;top:2px">DELIVERY CHALLAN</div>'+
+      '<div class="cph-dlabel" style="position:absolute;right:10px;top:2px">'+esc((ch&&ch.challanLabel)||'DELIVERY CHALLAN')+'</div>'+
     '</div>'+
     // Logo circle + company name + type
    '<div class="cph-logo-row">'+
@@ -3117,10 +3144,10 @@ function _buildChallanHalf(ch, client, co){
         '<div class="cph-to-meta"><span class="cph-to-meta-lbl">Mobile No :</span><input class="cph-to-inp-inline" value="'+toPhone+'" placeholder="—"/></div>'+
       '</div>'+
       '<div class="cph-refs">'+
-        '<div class="cph-ref"><span class="cph-rl">Vehicle :</span><input class="cph-rv" value="'+vehicleNo+'" placeholder="GJ01AB1234"/></div>'+
-        '<div class="cph-ref"><span class="cph-rl">Date :</span><input class="cph-rv" value="'+billDate+'"/></div>'+
         (showDcNo?'<div class="cph-ref"><span class="cph-rl">DC No. :</span><input class="cph-rv" value="'+billNo+'"/></div>':'')+
+        '<div class="cph-ref"><span class="cph-rl">Date :</span><input class="cph-rv" value="'+billDate+'"/></div>'+
         '<div class="cph-ref"><span class="cph-rl">Bill No. :</span><input class="cph-rv" value="'+refBillNo+'" placeholder="—"/></div>'+
+        '<div class="cph-ref"><span class="cph-rl">Vehicle :</span><input class="cph-rv" value="'+vehicleNo+'" placeholder="GJ01AB1234"/></div>'+
       '</div>'+
     '</div>'+
     // Items table fills remaining height via flex:1
@@ -3142,25 +3169,55 @@ function _buildChallanHalf(ch, client, co){
         '</tr></thead>'+
         '<tbody>'+rowHTML+'</tbody>'+
         (function(){
-          var cgst=0, sgst=0, displayTotal=grandTotal;
-          var gstRows='';
+          // Qty summary by unit (case-insensitive)
+          var unitMap={};
+          items.forEach(function(it){
+            if(!it||!it.qty) return;
+            var u=(it.unit||'').trim().toUpperCase()||'UNIT';
+            unitMap[u]=(unitMap[u]||0)+(it.qty||0);
+          });
+          var unitKeys=Object.keys(unitMap);
+          var qtySummaryStr=unitKeys.length
+            ? unitKeys.map(function(u){return u+' : '+parseFloat(unitMap[u].toFixed(4));}).join('  |  ')
+            : '';
+          // GST breakdown with proper rounding
+          var cgst=0,sgst=0,displayTotal=grandTotal,base=grandTotal;
           if(gstEnabled&&grandTotal>0){
-            cgst=grandTotal*0.09; sgst=grandTotal*0.09; displayTotal=grandTotal+cgst+sgst;
-            gstRows=
-              '<tr><td colspan="5" class="tr" style="padding:4px 6px;font-size:9pt;font-weight:600">Sub Total</td><td class="tr" style="padding:4px 6px;font-size:9pt">&#8377;'+fmtPdf(grandTotal)+'</td></tr>'+
-              '<tr><td colspan="5" class="tr" style="padding:4px 6px;font-size:9pt;font-weight:600">CGST @ 9%</td><td class="tr" style="padding:4px 6px;font-size:9pt">&#8377;'+fmtPdf(cgst)+'</td></tr>'+
-              '<tr><td colspan="5" class="tr" style="padding:4px 6px;font-size:9pt;font-weight:600">SGST @ 9%</td><td class="tr" style="padding:4px 6px;font-size:9pt">&#8377;'+fmtPdf(sgst)+'</td></tr>';
+            base=ch&&ch.total?+(ch.total/1.18).toFixed(2):+(grandTotal).toFixed(2);
+            cgst=+(base*0.09).toFixed(2); sgst=+(base*0.09).toFixed(2);
+            displayTotal=+(base+cgst+sgst).toFixed(2);
           }
+          // Right column: Total Qty → (Sub Total + CGST + SGST if GST) → TOTAL
+          var bdr1='border-top:1px solid #bbb;';
+          var rightRows=
+            '<tr>'+
+              '<td class="tr" style="padding:3px 6px;font-size:8.5pt;font-weight:700;border-top:1.5px solid #555">Total Qty</td>'+
+              '<td class="tr" style="padding:3px 6px;font-size:8.5pt;border-top:1.5px solid #555">'+esc(qtySummaryStr)+'</td>'+
+            '</tr>';
+          if(gstEnabled&&grandTotal>0){
+            rightRows+=
+              '<tr><td class="tr" style="padding:3px 6px;font-size:9pt;font-weight:600;'+bdr1+'">Sub Total</td><td class="tr" style="padding:3px 6px;font-size:9pt;'+bdr1+'">'+fmtPdf(base)+'</td></tr>'+
+              '<tr><td class="tr" style="padding:3px 6px;font-size:9pt;font-weight:600;'+bdr1+'">CGST @ 9%</td><td class="tr" style="padding:3px 6px;font-size:9pt;'+bdr1+'">'+fmtPdf(cgst)+'</td></tr>'+
+              '<tr><td class="tr" style="padding:3px 6px;font-size:9pt;font-weight:600;'+bdr1+'">SGST @ 9%</td><td class="tr" style="padding:3px 6px;font-size:9pt;'+bdr1+'">'+fmtPdf(sgst)+'</td></tr>';
+          }
+          rightRows+=
+            '<tr>'+
+              '<td class="tr" style="padding:4px 6px;font-size:10pt;font-weight:800;border-top:2px solid #000">TOTAL</td>'+
+              '<td class="tr" style="padding:4px 6px;font-size:10pt;font-weight:800;border-top:2px solid #000">'+(displayTotal>0?fmtPdf(displayTotal):'')+'</td>'+
+            '</tr>';
+          // Right column row count determines left notes rowspan
+          var rightRowCount=1+(gstEnabled&&grandTotal>0?3:0)+1;
           return '<tfoot>'+
-            '<tr class="cph-notes-row"><td colspan="6" contenteditable="true"'+(gstEnabled?' style="height:45px"':'')+'>'+(ch&&ch.notes?esc(ch.notes):'')+'</td></tr>'+
-            gstRows+
-            '<tr><td colspan="5" class="tr" style="padding:5px 6px">TOTAL</td><td class="tr" style="padding:5px 6px">'+(displayTotal>0?'&#8377;'+fmtPdf(displayTotal):'')+'</td></tr>'+
+            '<tr>'+
+              '<td colspan="3" rowspan="'+rightRowCount+'" contenteditable="true" style="vertical-align:top;padding:4px 6px;font-size:9pt;border-top:1.5px solid #555;border-right:1.5px solid #555">'+(ch&&ch.notes?esc(ch.notes):'')+'</td>'+
+              '<td colspan="3" style="padding:0;border-top:1.5px solid #555">'+
+                '<table style="width:100%;border-collapse:collapse">'+rightRows+'</table>'+
+              '</td>'+
+            '</tr>'+
           '</tfoot>';
         })()+
       '</table>'+
     '</div>'+
-    // GSTIN sits between table wrapper and footer
-    (gst?'<div class="cph-gstin">GSTIN : '+esc(gst)+'</div>':'')+
     '<div class="cph-foot">'+
       '<div class="cph-foot-l">'+
         '<div class="cph-terms">'+(co.footerText?esc(co.footerText):'&#8226; Goods once sold will not be taken back or exchanged.&nbsp;E.&amp;O.E<br>&#8226; Subject to '+esc(city)+' Jurisdiction')+'</div>'+
@@ -3218,7 +3275,9 @@ document.addEventListener('DOMContentLoaded',async function(){
 <div id="cp-ov">
   <div class="cp-bar">
     <span class="cp-bar-title"><i class="fas fa-file-invoice" style="margin-right:7px;color:#60a5fa"></i><span id="cp-ref">Delivery Challan</span></span>
-    <button class="btn" style="background:#16a34a;color:#fff;font-size:12px;padding:7px 14px" onclick="window.print()"><i class="fas fa-print" style="margin-right:5px"></i>Print (A5)</button>
+    <button class="btn" style="background:#16a34a;color:#fff;font-size:12px;padding:7px 14px" onclick="window.print()"><i class="fas fa-print" style="margin-right:5px"></i>Print</button>
+    <button id="cp-sz-a5" onclick="setCpPaperSize('a5')" style="background:#0f172a;color:#fff;font-size:12px;padding:7px 12px;border:none;border-radius:6px;cursor:pointer">A5</button>
+    <button id="cp-sz-a4" onclick="setCpPaperSize('a4')" style="background:#374151;color:#fff;font-size:12px;padding:7px 12px;border:none;border-radius:6px;cursor:pointer">A4</button>
     <button class="btn btn-ghost" style="color:#e2e8f0;border:1px solid #334155;font-size:12px;padding:7px 14px" onclick="closeChallanPrint()"><i class="fas fa-times" style="margin-right:5px"></i>Close</button>
   </div>
   <div class="cp-sheet" id="cp-sheet"></div>

@@ -36,11 +36,11 @@ router.post('/', requireCompanyId, async (req, res) => {
     let billNo = b.billNo || '';
 
     await run(
-      `INSERT INTO challans (id,company_id,client_id,bill_no,date,total,mode,status,items_json,gst_enabled,ref_bill_no,vehicle_no,receiver,notes,series_id,show_dc_no)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO challans (id,company_id,client_id,bill_no,date,total,mode,status,items_json,gst_enabled,ref_bill_no,vehicle_no,receiver,notes,series_id,show_dc_no,challan_label)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [id, req.companyId, b.clientId, billNo, b.date, total, b.mode||'credit', status,
        JSON.stringify(items), b.gstEnabled||0, b.refBillNo||'', b.vehicleNo||'', b.receiver||'', b.notes||'',
-       b.seriesId||null, b.showDcNo??1]
+       b.seriesId||null, b.showDcNo??1, b.challanLabel||'DELIVERY CHALLAN']
     );
     const row = await queryOne('SELECT * FROM challans WHERE id = ?', [id]);
     await logAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', entityType: 'challan', entityId: id, companyId: req.companyId, details: { billNo } });
@@ -59,11 +59,12 @@ router.put('/:id', async (req, res) => {
     const items = b.items || JSON.parse(existing.items_json || '[]');
     const total = b.total ?? items.reduce((s, i) => s + (i.lt || 0), 0);
     await run(
-      `UPDATE challans SET bill_no=?,client_id=?,date=?,total=?,mode=?,items_json=?,gst_enabled=?,ref_bill_no=?,vehicle_no=?,receiver=?,notes=?,series_id=?,show_dc_no=? WHERE id=?`,
+      `UPDATE challans SET bill_no=?,client_id=?,date=?,total=?,mode=?,items_json=?,gst_enabled=?,ref_bill_no=?,vehicle_no=?,receiver=?,notes=?,series_id=?,show_dc_no=?,challan_label=? WHERE id=?`,
       [b.billNo??existing.bill_no, b.clientId||existing.client_id, b.date||existing.date, total, b.mode||existing.mode,
        JSON.stringify(items), b.gstEnabled??existing.gst_enabled, b.refBillNo??existing.ref_bill_no,
        b.vehicleNo??existing.vehicle_no, b.receiver??existing.receiver, b.notes??existing.notes,
-       b.seriesId??existing.series_id, b.showDcNo??existing.show_dc_no??1, id]
+       b.seriesId??existing.series_id, b.showDcNo??existing.show_dc_no??1,
+       b.challanLabel??existing.challan_label??'DELIVERY CHALLAN', id]
     );
     const row = await queryOne('SELECT * FROM challans WHERE id = ?', [id]);
     await logAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', entityType: 'challan', entityId: id, companyId: existing.company_id, details: { billNo: row.bill_no } });

@@ -43,6 +43,7 @@ function mapClient(row) {
     gst: row.gstin || '',
     gstin: row.gstin || '',
     openingBalance: row.opening_balance || 0,
+    openingBalanceDate: row.opening_balance_date || null,
     lastAsked: row.last_asked || null,
   };
 }
@@ -82,6 +83,7 @@ function mapChallan(row) {
     notes: row.notes || '',
     seriesId: row.series_id || null,
     showDcNo: row.show_dc_no === undefined || row.show_dc_no === null ? 1 : row.show_dc_no,
+    challanLabel: row.challan_label || 'DELIVERY CHALLAN',
     confirmedAt: row.confirmed_at || null,
   };
 }

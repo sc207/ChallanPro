@@ -139,6 +139,7 @@ saveChallan = async function(existingId) {
       refBillNo: el('ch-ref-bill')?.value || '',
       seriesId,
       showDcNo,
+      challanLabel: el('ch-doc-label')?.value || 'DELIVERY CHALLAN',
     };
     let ch;
     if (existingId) {
@@ -174,6 +175,7 @@ saveClient = async function(existingId) {
     name, phone, address: el('cl-addr').value.trim(), email: el('cl-email').value.trim(),
     gst: el('cl-gst').value.trim(),
     openingBalance: obType === 'cr' ? -obAmt : obAmt,
+    openingBalanceDate: el('cl-ob-date')?.value || null,
     lastAsked: el('cl-asked').value || null,
   };
   let saved;
