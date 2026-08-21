@@ -25,9 +25,13 @@ saveQuickPayment = async function() {
   const amt = parseFloat(el('qp-amt')?.value) || 0;
   if (!clientId) { alert('Select a client.'); return; }
   if (!amt || amt <= 0) { alert('Enter a valid amount.'); return; }
+  const qpMode = el('qp-mode').value;
+  if (!qpMode) { alert('Select a payment mode.'); return; }
+  const qpUpi = qpMode === 'upi' ? (parseInt(el('qp-upi')?.value) || null) : null;
+  if (qpMode === 'upi' && !qpUpi) { alert('Select the UPI account that received this.'); return; }
   const p = await persistPayment({
     clientId, date: el('qp-date').value, amount: amt,
-    mode: el('qp-mode').value, note: el('qp-note').value
+    mode: qpMode, note: el('qp-note').value, upiAccountId: qpUpi
   });
   APP.payments.push(p);
   closeModal();
@@ -48,11 +52,22 @@ doDeletePayment = async function(id) {
 saveEditPayment = async function(id) {
   const amt = parseFloat(el('ep-amt')?.value) || 0;
   if (!amt || amt <= 0) { alert('Enter a valid amount.'); return; }
-  await API.del('/payments/' + id);
-  const p = await persistPayment({
-    clientId: parseInt(el('ep-client').value), amount: amt,
-    date: el('ep-date').value, mode: el('ep-mode').value, note: el('ep-note').value
-  });
+  const epMode = el('ep-mode').value;
+  const epUpi = epMode === 'upi' ? (parseInt(el('ep-upi')?.value) || null) : null;
+  if (epMode === 'upi' && !epUpi) { alert('Select the UPI account.'); return; }
+  let p;
+  try {
+    // Create the replacement FIRST, delete the old only after it succeeds — a failure can never lose the payment
+    p = await persistPayment({
+      clientId: parseInt(el('ep-client').value), amount: amt,
+      date: el('ep-date').value, mode: epMode, note: el('ep-note').value, upiAccountId: epUpi
+    });
+    if (!p || p.id == null) throw new Error('empty response');
+    await API.del('/payments/' + id);
+  } catch (e) {
+    alert('Could not update payment: ' + (e && e.message ? e.message : 'server error') + '\nPlease try again.');
+    return;
+  }
   APP.payments = APP.payments.filter(x => x.id !== id);
   APP.payments.push(p);
   clearAllocCache();
@@ -121,6 +136,23 @@ saveChallan = async function(existingId) {
     if (!items.length) { alert('Add at least one product row with qty.'); return; }
     const clId = parseInt(el('ch-client').value);
     if (!clId) { alert('Select a client.'); return; }
+    // Non-GST (normal series) numbers per client → require the client to have a series prefix
+    {
+      const _sid = parseInt(el('ch-series')?.value) || 0;
+      const _s = _sid ? APP.dcSeries.find(x => x.id === _sid) : APP.dcSeries.find(x => x.companyId === APP.activeCompanyId);
+      const _type = _s ? (_s.seriesType || 'normal') : 'normal';
+      if (_type === 'normal') {
+        const _cl = APP.clients.find(c => c.id === clId);
+        if (_cl && !(_cl.chalPrefix && String(_cl.chalPrefix).trim())) {
+          alert('This client has no non-GST challan series.\nAdd a Prefix for the client on the Customers page first, then create the challan.');
+          return;
+        }
+      }
+    }
+    const modeVal = el('ch-mode').value;
+    if (!modeVal) { alert('Select a payment mode.'); return; }
+    const upiAccountId = modeVal === 'upi' ? (parseInt(el('ch-upi')?.value) || null) : null;
+    if (modeVal === 'upi' && !upiAccountId) { alert('Select the UPI account that received this.'); return; }
     const billNoVal = (el('ch-bill')?.value || '').trim();
     const dup = APP.challans.some(c => c.billNo === billNoVal && c.id !== existingId);
     if (dup) { alert('DC No. "' + billNoVal + '" already exists. Please use a different number.'); return; }
@@ -132,7 +164,7 @@ saveChallan = async function(existingId) {
     const payload = {
       id: existingId || undefined,
       billNo: billNoVal,
-      clientId: clId, date: el('ch-date').value, mode: el('ch-mode').value,
+      clientId: clId, date: el('ch-date').value, mode: modeVal,
       items, total, vehicleNo: el('ch-veh').value, receiver: el('ch-recv').value,
       notes: el('ch-notes').value, status: 'draft',
       gstEnabled,
@@ -140,6 +172,7 @@ saveChallan = async function(existingId) {
       seriesId,
       showDcNo,
       challanLabel: el('ch-doc-label')?.value || 'DELIVERY CHALLAN',
+      upiAccountId,
     };
     let ch;
     if (existingId) {
@@ -150,15 +183,13 @@ saveChallan = async function(existingId) {
       ch = await API.post('/challans?companyId=' + APP.activeCompanyId, payload);
       ch = await API.post('/challans/' + ch.id + '/confirm');
       APP.challans.unshift(ch);
-      if (seriesId) {
-        const si = APP.dcSeries.findIndex(x => x.id === seriesId);
-        if (si >= 0) APP.dcSeries[si] = { ...APP.dcSeries[si], nextNumber: APP.dcSeries[si].nextNumber + 1 };
-      }
+      // Refresh series + clients so the next auto-number (client-wise for non-GST, series for GST/Hide) is correct
+      if (typeof reloadDcSeries === 'function') await reloadDcSeries();
+      if (typeof reloadClients === 'function') await reloadClients();
     }
     clearAllocCache();
     closeModal();
-    renderChallans();
-    renderDashboard();
+    try { renderChallans(); renderDashboard(); } catch (_) { /* a render error must not read as a save failure */ }
     toast(existingId ? 'Challan updated' : 'Challan saved');
   } catch(e) {
     toast(e.message || 'Failed to save challan', 't-del');
@@ -169,6 +200,8 @@ saveClient = async function(existingId) {
   const name = el('cl-name').value.trim();
   const phone = el('cl-phone').value.trim();
   if (!name || !phone) { alert('Name and Phone are required.'); return; }
+  const chalPrefix = el('cl-chal-prefix')?.value.trim() || '';
+  if (!chalPrefix) { alert('Challan Series Prefix is required — it keeps this client\'s non-GST challan numbers unique (e.g. the client\'s initials).'); el('cl-chal-prefix')?.focus(); return; }
   const obAmt = parseFloat(el('cl-ob-amt')?.value) || 0;
   const obType = el('cl-ob-type')?.value;
   const obj = {
@@ -177,50 +210,74 @@ saveClient = async function(existingId) {
     openingBalance: obType === 'cr' ? -obAmt : obAmt,
     openingBalanceDate: el('cl-ob-date')?.value || null,
     lastAsked: el('cl-asked').value || null,
+    chalPrefix,
+    chalStartNumber: parseInt(el('cl-chal-start')?.value) || 1,
   };
   let saved;
+  try {
+    saved = existingId
+      ? await API.put('/clients/' + existingId, obj)
+      : await API.post('/clients?companyId=' + APP.activeCompanyId, obj);
+  } catch (e) {
+    alert('Could not save client: ' + (e && e.message ? e.message : 'server error') + '\nPlease try again.');
+    return;   // keep the modal open for a retry; handleSave() resets the button
+  }
+  if (!saved || saved.id == null) {   // guard against an empty/invalid response corrupting the list
+    alert('Client may not have saved correctly. Refresh and check before re-adding.');
+    return;
+  }
   if (existingId) {
-    saved = await API.put('/clients/' + existingId, obj);
     const idx = APP.clients.findIndex(c => c.id === existingId);
-    if (idx >= 0) APP.clients[idx] = saved;
+    if (idx >= 0) APP.clients[idx] = saved; else APP.clients.push(saved);
   } else {
-    saved = await API.post('/clients?companyId=' + APP.activeCompanyId, obj);
     APP.clients.push(saved);
   }
   closeModal();
-  renderClients();
-  populateClientSelects();
+  try { renderClients(); populateClientSelects(); } catch (_) { /* render errors must not mask a successful save */ }
   toast(existingId ? 'Client updated' : 'Client added');
 };
 
 saveProduct = async function(existingId) {
   const name = el('pr-name').value.trim();
+  const unit = el('pr-unit').value;
   const price = parseFloat(el('pr-price').value) || 0;
-  if (!name || !price) { alert('Name and Rate are required.'); return; }
+  if (!name) { alert('Name is required.'); return; }
+  if (unit !== 'charge' && !price) { alert('Rate is required.'); return; }
   const obj = {
     name, desc: el('pr-desc').value.trim(), size: el('pr-size').value.trim(),
-    unit: el('pr-unit').value, price,
+    unit, price,
   };
   let saved;
+  try {
+    saved = existingId
+      ? await API.put('/products/' + existingId, obj)
+      : await API.post('/products?companyId=' + APP.activeCompanyId, obj);
+  } catch (e) {
+    alert('Could not save product: ' + (e && e.message ? e.message : 'server error') + '\nPlease try again.');
+    return;
+  }
+  if (!saved || saved.id == null) { alert('Product may not have saved correctly. Refresh and check.'); return; }
   if (existingId) {
-    saved = await API.put('/products/' + existingId, obj);
     const idx = APP.products.findIndex(p => p.id === existingId);
-    if (idx >= 0) APP.products[idx] = saved;
+    if (idx >= 0) APP.products[idx] = saved; else APP.products.push(saved);
   } else {
-    saved = await API.post('/products?companyId=' + APP.activeCompanyId, obj);
     APP.products.push(saved);
   }
   closeModal();
-  renderProducts();
+  try { renderProducts(); } catch (_) {}
   toast(existingId ? 'Product updated' : 'Product saved');
 };
 
 savePayment = async function(clientId) {
   const amt = parseFloat(el('pm-amt').value) || 0;
   if (!amt || amt <= 0) { alert('Enter a valid amount.'); return; }
+  const pmMode = el('pm-mode').value;
+  if (!pmMode) { alert('Select a payment mode.'); return; }
+  const pmUpi = pmMode === 'upi' ? (parseInt(el('pm-upi')?.value) || null) : null;
+  if (pmMode === 'upi' && !pmUpi) { alert('Select the UPI account that received this.'); return; }
   const p = await persistPayment({
     clientId, date: el('pm-date').value, amount: amt,
-    mode: el('pm-mode').value, note: el('pm-note').value,
+    mode: pmMode, note: el('pm-note').value, upiAccountId: pmUpi,
   });
   APP.payments.push(p);
   clearAllocCache();
@@ -241,6 +298,14 @@ doDelete = async function(type, id) {
   } else if (type === 'product') {
     await API.del('/products/' + id);
     APP.products = APP.products.filter(p => p.id != id);
+  } else if (type === 'purchase') {
+    await API.del('/purchases/' + id);
+    APP.purchases = APP.purchases.filter(p => p.id !== id);
+    clearAllocCache();
+  } else if (type === 'supplier') {
+    await API.del('/suppliers/' + id);
+    APP.suppliers = APP.suppliers.filter(s => s.id != id);
+    clearAllocCache();
   }
   closeModal();
   el('modal-foot').innerHTML = '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" id="modal-save" onclick="handleSave()">Save</button>';
@@ -248,6 +313,8 @@ doDelete = async function(type, id) {
   if (type === 'challan') renderChallans();
   if (type === 'client') renderClients();
   if (type === 'product') renderProducts();
+  if (type === 'purchase' && typeof renderPurchases === 'function') renderPurchases();
+  if (type === 'supplier' && typeof renderSuppliers === 'function') renderSuppliers();
   renderDashboard();
 };
 
@@ -302,6 +369,210 @@ uploadCompanyLogo = async function(companyId, input) {
     toast(e.message, 't-del');
   }
   input.value = '';
+};
+
+/* ══════════════════ SUPPLIERS ══════════════════ */
+saveSupplier = async function(existingId) {
+  const name = el('sup-name').value.trim();
+  if (!name) { alert('Supplier name is required.'); return; }
+  const obAmt = parseFloat(el('sup-ob-amt')?.value) || 0;
+  const obType = el('sup-ob-type')?.value;
+  const obj = {
+    name,
+    phone: el('sup-phone').value.trim(),
+    address: el('sup-addr').value.trim(),
+    email: el('sup-email')?.value.trim() || '',
+    gst: el('sup-gst').value.trim(),
+    openingBalance: obType === 'cr' ? -obAmt : obAmt,
+    openingBalanceDate: el('sup-ob-date')?.value || null,
+    lastAsked: el('sup-asked')?.value || null,
+    purPrefix: el('sup-pur-prefix')?.value.trim() || '',
+    purStartNumber: parseInt(el('sup-pur-start')?.value) || 1,
+  };
+  let saved;
+  try {
+    saved = existingId
+      ? await API.put('/suppliers/' + existingId, obj)
+      : await API.post('/suppliers?companyId=' + APP.activeCompanyId, obj);
+  } catch (e) {
+    alert('Could not save supplier: ' + (e && e.message ? e.message : 'server error') + '\nPlease try again.');
+    return;
+  }
+  if (!saved || saved.id == null) { alert('Supplier may not have saved correctly. Refresh and check.'); return; }
+  if (existingId) {
+    const idx = APP.suppliers.findIndex(s => s.id === existingId);
+    if (idx >= 0) APP.suppliers[idx] = saved; else APP.suppliers.push(saved);
+  } else {
+    APP.suppliers.push(saved);
+  }
+  closeModal();
+  try { if (typeof renderSuppliers === 'function') renderSuppliers(); if (typeof populateSupplierSelects === 'function') populateSupplierSelects(); } catch (_) {}
+  toast(existingId ? 'Supplier updated' : 'Supplier added');
+};
+
+/* ══════════════════ PURCHASES ══════════════════ */
+savePurchase = async function(existingId) {
+  try {
+    const rows = [...document.querySelectorAll('#pur-rows .prow')];
+    const items = [];
+    for (const row of rows) {
+      const pid = parseInt(row.querySelector('.prod-sel').value) || 0;
+      const price = parseFloat(row.querySelector('.price-f').value) || 0;
+      const qty = parseFloat(row.querySelector('.qty-f').value) || 0;
+      if (!pid || !qty) continue;
+      const p = APP.products.find(x => x.id === pid);
+      items.push({ pid, name: p.name, size: row.querySelector('.size-f').value, price, qty, unit: p.unit, lt: price * qty });
+    }
+    if (!items.length) { alert('Add at least one product row with qty.'); return; }
+    const supId = parseInt(el('pur-supplier').value);
+    if (!supId) { alert('Select a supplier.'); return; }
+    const modeVal = el('pur-mode').value;
+    if (!modeVal) { alert('Select a payment mode.'); return; }
+    const upiAccountId = modeVal === 'upi' ? (parseInt(el('pur-upi')?.value) || null) : null;
+    if (modeVal === 'upi' && !upiAccountId) { alert('Select the UPI account used to pay.'); return; }
+    const billNoVal = (el('pur-bill')?.value || '').trim();
+    const dup = APP.purchases.some(p => p.billNo === billNoVal && p.id !== existingId);
+    if (billNoVal && dup) { alert('Purchase No. "' + billNoVal + '" already exists. Please use a different number.'); return; }
+    const baseTotal = items.reduce((s, it) => s + it.lt, 0);
+    const gstEnabled = el('pur-gst')?.checked ? 1 : 0;
+    const total = gstEnabled ? +(baseTotal * 1.18).toFixed(2) : baseTotal;
+    const payload = {
+      id: existingId || undefined,
+      billNo: billNoVal,
+      supplierId: supId, date: el('pur-date').value, mode: modeVal,
+      items, total, vehicleNo: el('pur-veh')?.value || '', receiver: el('pur-recv')?.value || '',
+      notes: el('pur-notes').value, status: 'draft',
+      gstEnabled,
+      refBillNo: el('pur-ref-bill')?.value || '',
+      docLabel: el('pur-doc-label')?.value || 'PURCHASE INVOICE',
+      upiAccountId,
+    };
+    let pu;
+    if (existingId) {
+      pu = await API.put('/purchases/' + existingId, payload);
+      const idx = APP.purchases.findIndex(p => p.id === existingId);
+      if (idx >= 0) APP.purchases[idx] = pu;
+    } else {
+      pu = await API.post('/purchases?companyId=' + APP.activeCompanyId, payload);
+      pu = await API.post('/purchases/' + pu.id + '/confirm');
+      APP.purchases.unshift(pu);
+      // Refresh suppliers so the next auto-number (PREFIX/MON/NN, monthly reset) is correct
+      if (typeof reloadSuppliers === 'function') await reloadSuppliers();
+    }
+    clearAllocCache();
+    closeModal();
+    try { if (typeof renderPurchases === 'function') renderPurchases(); renderDashboard(); } catch (_) { /* render error must not read as a save failure */ }
+    toast(existingId ? 'Purchase updated' : 'Purchase saved');
+  } catch (e) {
+    toast(e.message || 'Failed to save purchase', 't-del');
+  }
+};
+
+/* ══════════════════ SUPPLIER PAYMENTS ══════════════════ */
+function _refreshAfterSupplierPayment() {
+  clearAllocCache();
+  if (typeof renderSupplierPayments === 'function') renderSupplierPayments();
+  if (typeof renderSuppliers === 'function') renderSuppliers();
+  if (el('page-supplier-detail')?.classList.contains('active') && typeof renderSupplierDetail === 'function') renderSupplierDetail();
+  if (el('page-upi')?.classList.contains('active') && typeof renderUpiReport === 'function') renderUpiReport();
+  renderDashboard();
+}
+
+saveSupplierPayment = async function(supplierId) {
+  const amt = parseFloat(el('spm-amt').value) || 0;
+  if (!amt || amt <= 0) { alert('Enter a valid amount.'); return; }
+  const mode = el('spm-mode').value;
+  if (!mode) { alert('Select a payment mode.'); return; }
+  const upi = mode === 'upi' ? (parseInt(el('spm-upi')?.value) || null) : null;
+  if (mode === 'upi' && !upi) { alert('Select the UPI account used to pay.'); return; }
+  const p = await persistSupplierPayment({ supplierId, date: el('spm-date').value, amount: amt, mode, note: el('spm-note').value, upiAccountId: upi });
+  APP.supplierPayments.push(p);
+  closeModal();
+  toast('Payment recorded');
+  _refreshAfterSupplierPayment();
+};
+
+saveQuickSupplierPayment = async function() {
+  const supplierId = parseInt(el('sqp-supplier')?.value);
+  const amt = parseFloat(el('sqp-amt')?.value) || 0;
+  if (!supplierId) { alert('Select a supplier.'); return; }
+  if (!amt || amt <= 0) { alert('Enter a valid amount.'); return; }
+  const mode = el('sqp-mode').value;
+  if (!mode) { alert('Select a payment mode.'); return; }
+  const upi = mode === 'upi' ? (parseInt(el('sqp-upi')?.value) || null) : null;
+  if (mode === 'upi' && !upi) { alert('Select the UPI account used to pay.'); return; }
+  const p = await persistSupplierPayment({ supplierId, date: el('sqp-date').value, amount: amt, mode, note: el('sqp-note').value, upiAccountId: upi });
+  APP.supplierPayments.push(p);
+  closeModal();
+  toast('Payment recorded');
+  _refreshAfterSupplierPayment();
+};
+
+saveEditSupplierPayment = async function(id) {
+  const amt = parseFloat(el('sep-amt')?.value) || 0;
+  if (!amt || amt <= 0) { alert('Enter a valid amount.'); return; }
+  const mode = el('sep-mode').value;
+  const upi = mode === 'upi' ? (parseInt(el('sep-upi')?.value) || null) : null;
+  if (mode === 'upi' && !upi) { alert('Select the UPI account.'); return; }
+  let p;
+  try {
+    // Create the replacement FIRST, delete the old only after it succeeds — a failure can never lose the payment
+    p = await persistSupplierPayment({ supplierId: parseInt(el('sep-supplier').value), amount: amt, date: el('sep-date').value, mode, note: el('sep-note').value, upiAccountId: upi });
+    if (!p || p.id == null) throw new Error('empty response');
+    await API.del('/supplier-payments/' + id);
+  } catch (e) {
+    alert('Could not update payment: ' + (e && e.message ? e.message : 'server error') + '\nPlease try again.');
+    return;
+  }
+  APP.supplierPayments = APP.supplierPayments.filter(x => x.id !== id);
+  APP.supplierPayments.push(p);
+  closeModal();
+  toast('Payment updated');
+  _refreshAfterSupplierPayment();
+};
+
+doDeleteSupplierPayment = async function(id) {
+  await API.del('/supplier-payments/' + id);
+  APP.supplierPayments = APP.supplierPayments.filter(p => p.id !== id);
+  closeModal();
+  el('modal-foot').innerHTML = '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" id="modal-save" onclick="handleSave()">Save</button>';
+  toast('Payment deleted', 't-del');
+  _refreshAfterSupplierPayment();
+};
+
+/* ══════════════════ UPI ACCOUNTS ══════════════════ */
+saveUpiAccount = async function(existingId) {
+  const name = el('upi-name').value.trim();
+  if (!name) { alert('Account name is required.'); return; }
+  const obj = { name, openingBalance: parseFloat(el('upi-ob')?.value) || 0 };
+  let saved;
+  try {
+    saved = existingId
+      ? await API.put('/upi-accounts/' + existingId, obj)
+      : await API.post('/upi-accounts?companyId=' + APP.activeCompanyId, obj);
+  } catch (e) {
+    alert('Could not save UPI account: ' + (e && e.message ? e.message : 'server error') + '\nPlease try again.');
+    return;
+  }
+  if (!saved || saved.id == null) { alert('UPI account may not have saved correctly. Refresh and check.'); return; }
+  if (existingId) {
+    const idx = APP.upiAccounts.findIndex(u => u.id === existingId);
+    if (idx >= 0) APP.upiAccounts[idx] = saved; else APP.upiAccounts.push(saved);
+  } else {
+    APP.upiAccounts.push(saved);
+  }
+  closeModal();
+  try { if (typeof renderUpiReport === 'function') renderUpiReport(); } catch (_) {}
+  toast(existingId ? 'UPI account updated' : 'UPI account added');
+  return saved;
+};
+
+deleteUpiAccount = async function(id) {
+  if (!confirm('Delete this UPI account?')) return;
+  await API.del('/upi-accounts/' + id);
+  APP.upiAccounts = APP.upiAccounts.filter(u => u.id !== id);
+  if (typeof renderUpiReport === 'function') renderUpiReport();
+  toast('UPI account deleted', 't-del');
 };
 
 exportData = async function() {

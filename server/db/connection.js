@@ -115,9 +115,14 @@ async function run(sql, params = []) {
   const database = await getDb();
   if (isTurso) {
     const r = await database.prepare(sql).run(...params);
-    return { lastInsertRowid: r.lastInsertRowid, changes: r.rowsAffected };
+    // libsql returns lastInsertRowid as a BigInt — coerce to a plain Number so it
+    // can be JSON-serialized in responses and matched in follow-up SELECTs.
+    const rowid = r.lastInsertRowid != null ? Number(r.lastInsertRowid) : undefined;
+    return { lastInsertRowid: rowid, changes: Number(r.rowsAffected || 0) };
   }
-  return database.prepare(sql).run(...params);
+  const nr = database.prepare(sql).run(...params);
+  // better-sqlite3 may also hand back a BigInt rowid for large values
+  return { lastInsertRowid: nr.lastInsertRowid != null ? Number(nr.lastInsertRowid) : undefined, changes: nr.changes };
 }
 
 module.exports = { getDb, queryAll, queryOne, run, isTurso: () => isTurso };

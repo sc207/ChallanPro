@@ -20,9 +20,10 @@ router.post('/', requireCompanyId, async (req, res) => {
   try {
     const b = req.body;
     if (!b.name) return res.status(400).json({ error: 'Name is required' });
+    const start = b.startNumber || b.nextNumber || 1;
     const result = await run(
-      'INSERT INTO dc_series (company_id, name, prefix, next_number, series_type) VALUES (?,?,?,?,?)',
-      [req.companyId, b.name, b.prefix || '', b.nextNumber || 1, b.seriesType || 'normal']
+      'INSERT INTO dc_series (company_id, name, prefix, next_number, series_type, start_number, seq_period) VALUES (?,?,?,?,?,?,?)',
+      [req.companyId, b.name, b.prefix || '', start, b.seriesType || 'normal', start, '']
     );
     const row = await queryOne('SELECT * FROM dc_series WHERE id = ?', [result.lastInsertRowid]);
     res.status(201).json(mapDcSeries(row));
@@ -37,9 +38,15 @@ router.put('/:id', async (req, res) => {
     const b = req.body;
     const existing = await queryOne('SELECT * FROM dc_series WHERE id = ? AND is_deleted = 0', [id]);
     if (!existing) return res.status(404).json({ error: 'Not found' });
+    const newStart = b.startNumber ?? existing.start_number ?? 1;
+    // If the start value changed, reset the live counter/period so the next number uses it
+    const startChanged = b.startNumber !== undefined && b.startNumber !== existing.start_number;
     await run(
-      'UPDATE dc_series SET name=?, prefix=?, next_number=?, series_type=? WHERE id=?',
-      [b.name || existing.name, b.prefix ?? existing.prefix, b.nextNumber ?? existing.next_number, b.seriesType || existing.series_type || 'normal', id]
+      'UPDATE dc_series SET name=?, prefix=?, next_number=?, series_type=?, start_number=?, seq_period=? WHERE id=?',
+      [b.name || existing.name, b.prefix ?? existing.prefix,
+       startChanged ? newStart : (b.nextNumber ?? existing.next_number),
+       b.seriesType || existing.series_type || 'normal',
+       newStart, startChanged ? '' : (existing.seq_period || ''), id]
     );
     const row = await queryOne('SELECT * FROM dc_series WHERE id = ?', [id]);
     res.json(mapDcSeries(row));

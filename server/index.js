@@ -9,6 +9,12 @@ const config = require('./config');
 
 const { authRequired } = require('./middleware/auth');
 
+/* -------------------- FAIL-FAST: STRONG JWT SECRET IN PROD -------------------- */
+if (config.isProd && (!process.env.JWT_SECRET || config.jwtSecret === 'dev-secret-change-in-production')) {
+  console.error('FATAL: JWT_SECRET must be set to a strong, unique value in production.');
+  process.exit(1);
+}
+
 const authRoutes = require('./routes/auth');
 const companiesRoutes = require('./routes/companies');
 const clientsRoutes = require('./routes/clients');
@@ -19,17 +25,48 @@ const usersRoutes = require('./routes/users');
 const activityRoutes = require('./routes/activity');
 const settingsRoutes = require('./routes/settings');
 const dcSeriesRoutes = require('./routes/dcSeries');
+const suppliersRoutes = require('./routes/suppliers');
+const purchasesRoutes = require('./routes/purchases');
+const supplierPaymentsRoutes = require('./routes/supplierPayments');
+const upiAccountsRoutes = require('./routes/upiAccounts');
+const sessionsRoutes = require('./routes/sessions');
 
 const app = express();
 
 app.set('trust proxy', 1);
 /* -------------------- SECURITY MIDDLEWARE -------------------- */
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      // The SPA relies on inline <script>, inline onclick= handlers and inline style= attributes,
+      // so 'unsafe-inline' is required on both the *-src and *-src-attr directives. Helmet's default
+      // script-src-attr is 'none' (blocks onclick=), which is why it must be overridden explicitly.
+      // Tighten these once inline handlers are moved to addEventListener.
+      scriptSrc: ["'self'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "'unsafe-inline'"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "https://cdnjs.cloudflare.com", "'unsafe-inline'"],
+      styleSrcAttr: ["'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      fontSrc: ["'self'", "https://cdnjs.cloudflare.com", "data:"],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'self'"],
+    },
+  },
   crossOriginEmbedderPolicy: false,
 }));
 
-app.use(cors({ origin: true, credentials: true }));
+/* CORS: allow only trusted origins in production (comma-separated ALLOWED_ORIGINS);
+   with none configured (local dev) requests are allowed. */
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || !allowedOrigins.length || allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -43,7 +80,7 @@ const otpLimiter = rateLimit({
   message: { error: 'Too many OTP requests' }
 });
 
-app.use('/api/auth/request-otp', otpLimiter);
+app.use('/api/auth/request-setup-otp', otpLimiter);
 
 /* -------------------- HEALTH CHECK (RENDER) -------------------- */
 app.get('/health', (req, res) => {
@@ -73,6 +110,11 @@ app.use('/api/users', usersRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/dc-series', dcSeriesRoutes);
+app.use('/api/suppliers', suppliersRoutes);
+app.use('/api/purchases', purchasesRoutes);
+app.use('/api/supplier-payments', supplierPaymentsRoutes);
+app.use('/api/upi-accounts', upiAccountsRoutes);
+app.use('/api/sessions', sessionsRoutes);
 
 /* -------------------- BACKUP IMPORT -------------------- */
 app.post('/api/backup/import', async (req, res) => {
@@ -111,8 +153,8 @@ app.post('/api/backup/import', async (req, res) => {
     for (const cl of (data.clients || [])) {
       await dbRun(
         `INSERT OR REPLACE INTO clients
-        (id,company_id,name,address,phone,email,gstin,last_asked)
-        VALUES (?,?,?,?,?,?,?,?)`,
+        (id,company_id,name,address,phone,email,gstin,last_asked,opening_balance,opening_balance_date,chal_prefix,chal_start_number,chal_seq_period,chal_next_number)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           cl.id,
           cl.companyId,
@@ -121,7 +163,13 @@ app.post('/api/backup/import', async (req, res) => {
           cl.phone || '',
           cl.email || '',
           cl.gst || cl.gstin || '',
-          cl.lastAsked || null
+          cl.lastAsked || null,
+          cl.openingBalance || 0,
+          cl.openingBalanceDate || null,
+          cl.chalPrefix || '',
+          cl.chalStartNumber || 1,
+          cl.chalSeqPeriod || '',
+          cl.chalNextNumber || 1
         ]
       );
     }
@@ -143,11 +191,29 @@ app.post('/api/backup/import', async (req, res) => {
       );
     }
 
+    for (const s of (data.dcSeries || [])) {
+      await dbRun(
+        `INSERT OR REPLACE INTO dc_series
+        (id,company_id,name,prefix,next_number,series_type,start_number,seq_period)
+        VALUES (?,?,?,?,?,?,?,?)`,
+        [
+          s.id,
+          s.companyId || 1,
+          s.name || 'Default',
+          s.prefix || '',
+          s.nextNumber || 1,
+          s.seriesType || 'normal',
+          s.startNumber || 1,
+          s.seqPeriod || ''
+        ]
+      );
+    }
+
     for (const ch of (data.challans || [])) {
       await dbRun(
         `INSERT OR REPLACE INTO challans
-        (id,company_id,client_id,bill_no,date,total,mode,status,items_json,vehicle_no,receiver,notes)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        (id,company_id,client_id,bill_no,date,total,mode,status,items_json,vehicle_no,receiver,notes,gst_enabled,ref_bill_no,series_id,show_dc_no,challan_label,upi_account_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           ch.id,
           ch.companyId || 1,
@@ -160,7 +226,13 @@ app.post('/api/backup/import', async (req, res) => {
           JSON.stringify(ch.items || []),
           ch.vehicleNo || '',
           ch.receiver || '',
-          ch.notes || ''
+          ch.notes || '',
+          ch.gstEnabled || 0,
+          ch.refBillNo || '',
+          ch.seriesId || null,
+          ch.showDcNo == null ? 1 : ch.showDcNo,
+          ch.challanLabel || 'DELIVERY CHALLAN',
+          ch.upiAccountId || null
         ]
       );
     }
@@ -168,8 +240,8 @@ app.post('/api/backup/import', async (req, res) => {
     for (const p of (data.payments || [])) {
       await dbRun(
         `INSERT OR REPLACE INTO payments
-        (id,company_id,client_id,amount,mode,date,note)
-        VALUES (?,?,?,?,?,?,?)`,
+        (id,company_id,client_id,amount,mode,date,note,upi_account_id)
+        VALUES (?,?,?,?,?,?,?,?)`,
         [
           p.id,
           p.companyId || 1,
@@ -177,8 +249,55 @@ app.post('/api/backup/import', async (req, res) => {
           p.amount,
           p.mode || 'cash',
           p.date,
-          p.note || ''
+          p.note || '',
+          p.upiAccountId || null
         ]
+      );
+    }
+
+    for (const s of (data.suppliers || [])) {
+      await dbRun(
+        `INSERT OR REPLACE INTO suppliers
+        (id,company_id,name,address,phone,email,gstin,opening_balance,opening_balance_date,last_asked,pur_prefix,pur_start_number,pur_seq_period,pur_next_number)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          s.id, s.companyId || 1, s.name, s.address || '', s.phone || '', s.email || '',
+          s.gst || s.gstin || '', s.openingBalance || 0, s.openingBalanceDate || null, s.lastAsked || null,
+          s.purPrefix || '', s.purStartNumber || 1, s.purSeqPeriod || '', s.purNextNumber || 1
+        ]
+      );
+    }
+
+    for (const pu of (data.purchases || [])) {
+      await dbRun(
+        `INSERT OR REPLACE INTO purchases
+        (id,company_id,supplier_id,bill_no,date,total,mode,status,items_json,gst_enabled,ref_bill_no,vehicle_no,receiver,notes,doc_label,upi_account_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          pu.id, pu.companyId || 1, pu.supplierId, pu.billNo || '', pu.date, pu.total, pu.mode || 'credit',
+          pu.status || 'confirmed', JSON.stringify(pu.items || []), pu.gstEnabled || 0, pu.refBillNo || '',
+          pu.vehicleNo || '', pu.receiver || '', pu.notes || '', pu.docLabel || 'PURCHASE INVOICE', pu.upiAccountId || null
+        ]
+      );
+    }
+
+    for (const sp of (data.supplierPayments || [])) {
+      await dbRun(
+        `INSERT OR REPLACE INTO supplier_payments
+        (id,company_id,supplier_id,amount,mode,date,note,upi_account_id)
+        VALUES (?,?,?,?,?,?,?,?)`,
+        [
+          sp.id, sp.companyId || 1, sp.supplierId, sp.amount, sp.mode || 'cash', sp.date, sp.note || '', sp.upiAccountId || null
+        ]
+      );
+    }
+
+    for (const u of (data.upiAccounts || [])) {
+      await dbRun(
+        `INSERT OR REPLACE INTO upi_accounts
+        (id,company_id,name,opening_balance)
+        VALUES (?,?,?,?)`,
+        [u.id, u.companyId || 1, u.name, u.openingBalance || 0]
       );
     }
 
@@ -196,7 +315,7 @@ app.get('/api/backup/export', async (req, res) => {
     }
 
     const { queryAll } = require('./db/connection');
-    const { mapCompany, mapClient, mapProduct, mapChallan, mapPayment, mapDcSeries } = require('./utils/mappers');
+    const { mapCompany, mapClient, mapProduct, mapChallan, mapPayment, mapDcSeries, mapSupplier, mapPurchase, mapSupplierPayment, mapUpiAccount } = require('./utils/mappers');
 
     const data = {
       companies: (await queryAll('SELECT * FROM companies WHERE is_deleted=0')).map(mapCompany),
@@ -205,6 +324,10 @@ app.get('/api/backup/export', async (req, res) => {
       challans: (await queryAll('SELECT * FROM challans WHERE is_deleted=0')).map(mapChallan),
       payments: (await queryAll('SELECT * FROM payments WHERE is_deleted=0')).map(mapPayment),
       dcSeries: (await queryAll('SELECT * FROM dc_series WHERE is_deleted=0')).map(mapDcSeries),
+      suppliers: (await queryAll('SELECT * FROM suppliers WHERE is_deleted=0')).map(mapSupplier),
+      purchases: (await queryAll('SELECT * FROM purchases WHERE is_deleted=0')).map(mapPurchase),
+      supplierPayments: (await queryAll('SELECT * FROM supplier_payments WHERE is_deleted=0')).map(mapSupplierPayment),
+      upiAccounts: (await queryAll('SELECT * FROM upi_accounts WHERE is_deleted=0')).map(mapUpiAccount),
       auditLogs: await queryAll('SELECT id,user_email,action,entity_type,entity_id,company_id,details_json,created_at FROM audit_logs ORDER BY id DESC LIMIT 10000'),
       exportedAt: new Date().toISOString(),
     };
@@ -229,7 +352,13 @@ app.delete('/api/backup/wipe', async (req, res) => {
     await dbRun('DELETE FROM challans');
     await dbRun('DELETE FROM clients');
     await dbRun('DELETE FROM products');
+    await dbRun('DELETE FROM supplier_payments');
+    await dbRun('DELETE FROM purchases');
+    await dbRun('DELETE FROM suppliers');
+    await dbRun('DELETE FROM upi_accounts');
     await dbRun('UPDATE companies SET next_bill_number = 1');
+    // Reset DC-series counters so numbering restarts cleanly (definitions are kept)
+    await dbRun("UPDATE dc_series SET next_number = start_number, seq_period = ''");
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

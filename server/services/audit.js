@@ -22,6 +22,9 @@ function formatActivity(row) {
   const entities = {
     client: 'Client', product: 'Product', challan: 'Challan',
     payment: 'Payment', company: 'Company', user: 'User',
+    supplier: 'Supplier', purchase: 'Purchase',
+    supplierPayment: 'Supplier Payment', upiAccount: 'UPI Account',
+    session: 'Session', auth: 'Session',
   };
   const action = labels[row.action] || row.action;
   const entity = entities[row.entity_type] || row.entity_type || 'record';

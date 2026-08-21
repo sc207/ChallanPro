@@ -26,8 +26,8 @@ router.post('/', requireCompanyId, async (req, res) => {
     const b = req.body;
     const id = b.id || uid();
     await run(
-      'INSERT INTO payments (id,company_id,client_id,amount,mode,date,note) VALUES (?,?,?,?,?,?,?)',
-      [id, req.companyId, b.clientId, b.amount, b.mode||'cash', b.date, b.note||'']
+      'INSERT INTO payments (id,company_id,client_id,amount,mode,date,note,upi_account_id) VALUES (?,?,?,?,?,?,?,?)',
+      [id, req.companyId, b.clientId, b.amount, b.mode||'cash', b.date, b.note||'', b.upiAccountId||null]
     );
     const row = await queryOne('SELECT * FROM payments WHERE id = ?', [id]);
     await logAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', entityType: 'payment', entityId: id, companyId: req.companyId, details: { amount: b.amount } });

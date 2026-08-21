@@ -34,6 +34,16 @@ async function migrateSchema() {
     `ALTER TABLE dc_series ADD COLUMN series_type TEXT DEFAULT 'normal'`,
     `ALTER TABLE clients ADD COLUMN opening_balance_date TEXT DEFAULT NULL`,
     `ALTER TABLE challans ADD COLUMN challan_label TEXT DEFAULT 'DELIVERY CHALLAN'`,
+    // Suppliers / purchases / UPI accounts (new "buy side") + monthly-reset series columns
+    `ALTER TABLE dc_series ADD COLUMN start_number INTEGER DEFAULT 1`,
+    `ALTER TABLE dc_series ADD COLUMN seq_period TEXT DEFAULT ''`,
+    `ALTER TABLE challans ADD COLUMN upi_account_id INTEGER`,
+    `ALTER TABLE payments ADD COLUMN upi_account_id INTEGER`,
+    // Per-client challan number series (non-GST) — PREFIX/MON/NN, monthly reset
+    `ALTER TABLE clients ADD COLUMN chal_prefix TEXT DEFAULT ''`,
+    `ALTER TABLE clients ADD COLUMN chal_start_number INTEGER DEFAULT 1`,
+    `ALTER TABLE clients ADD COLUMN chal_seq_period TEXT DEFAULT ''`,
+    `ALTER TABLE clients ADD COLUMN chal_next_number INTEGER DEFAULT 1`,
   ];
   for (const sql of safeAlter) {
     try { await run(sql); } catch (_) {}

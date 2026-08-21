@@ -2,7 +2,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;color:#334155}
 .sidebar{width:230px;min-height:100vh;background:#0f172a;position:fixed;left:0;top:0;z-index:100;display:flex;flex-direction:column;overflow-y:auto}
-.main{margin-left:230px;min-height:100vh;background:#f1f5f9}
+.main{margin-left:230px;min-height:100vh;background:var(--bg)}
 .topbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:12px 22px;position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between}
 .nav-logo{padding:18px 16px 14px;border-bottom:1px solid #1e293b}
 .nav-logo .name{color:#fff;font-size:16px;font-weight:800}
@@ -329,4 +329,88 @@ textarea.cph-to-inp-inline{resize:none;overflow:hidden;line-height:1.45;width:10
   @media(max-width:768px){.cp-sheet{min-height:auto;aspect-ratio:118/168;max-height:70vh}}
 }
 .challan-cards{display:none}
-:root{--co-primary:#0f172a;--co-secondary:#1d4ed8}
+
+/* ═══════════════ THEME TOKENS (light default + dark) ═══════════════ */
+:root{
+  --co-primary:#0f172a;--co-secondary:#1d4ed8;
+  --bg:#f1f5f9;--surface:#ffffff;--surface-2:#f8fafc;
+  --text:#0f172a;--text-soft:#334155;--muted:#64748b;--border:#e2e8f0;
+}
+:root[data-theme="dark"]{
+  --bg:#0b1220;--surface:#111827;--surface-2:#172033;
+  --text:#e5e7eb;--text-soft:#cbd5e1;--muted:#94a3b8;--border:#243044;
+  color-scheme:dark;
+}
+/* Dark overrides for class-based chrome (inline-styled content adapts via the vars above) */
+[data-theme="dark"] body{background:var(--bg);color:var(--text-soft)}
+[data-theme="dark"] .topbar{background:var(--surface);border-bottom-color:var(--border)}
+[data-theme="dark"] .card,[data-theme="dark"] .stat-card{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.45)}
+[data-theme="dark"] .stat-val{color:var(--text)}
+[data-theme="dark"] th{background:var(--surface-2);color:var(--muted);border-bottom-color:var(--border)}
+[data-theme="dark"] td{border-bottom-color:var(--border)}
+[data-theme="dark"] tr:last-child td{border-bottom:none}
+[data-theme="dark"] tr:hover td{background:var(--surface-2)}
+[data-theme="dark"] .inp{background:var(--surface);border-color:var(--border);color:var(--text)}
+[data-theme="dark"] .inp[readonly]{background:var(--surface-2)}
+[data-theme="dark"] .modal-box{background:var(--surface)}
+[data-theme="dark"] .modal-head{border-bottom-color:var(--border)}
+[data-theme="dark"] .modal-head h2{color:var(--text)}
+[data-theme="dark"] .modal-foot{border-top-color:var(--border)}
+[data-theme="dark"] .cd-tabs{background:var(--surface-2)}
+[data-theme="dark"] .cd-tab.active{background:var(--surface);color:var(--text)}
+[data-theme="dark"] .fu-card{background:var(--surface)}
+[data-theme="dark"] .data-card{background:var(--surface);border-color:var(--border)}
+[data-theme="dark"] .btn-ghost{background:var(--surface-2);color:var(--text-soft);border-color:var(--border)}
+[data-theme="dark"] .prog-bar{background:var(--border)}
+/* Keep the printable challan/purchase sheet always light regardless of theme */
+.cp-sheet{--text:#0f172a;--surface:#fff;--surface-2:#f8fafc;--muted:#64748b;--border:#e2e8f0}
+
+/* ═══════════════ SIDEBAR COLLAPSE (desktop icon-rail) ═══════════════ */
+.sidebar-toggle{background:#1e293b;color:#94a3b8;border:none;border-radius:7px;width:30px;height:30px;cursor:pointer;flex-shrink:0}
+.sidebar-toggle:hover{background:#293548;color:#e2e8f0}
+@media(min-width:769px){
+  /* smooth collapse only on desktop — must NOT touch the mobile drawer's transform transition */
+  .sidebar{transition:width .2s ease}
+  .main{transition:margin-left .2s ease}
+  body.sidebar-collapsed .sidebar{width:64px;overflow-x:hidden}
+  body.sidebar-collapsed .main{margin-left:64px}
+  /* Labels are raw text nodes (not spans): collapse them with font-size:0 and keep the icon sized */
+  body.sidebar-collapsed .sidebar .nav-item{justify-content:center;font-size:0;white-space:nowrap;overflow:hidden}
+  body.sidebar-collapsed .sidebar .nav-item i{margin-right:0;font-size:16px}
+  body.sidebar-collapsed .sidebar .nav-section{font-size:0;padding-top:10px;padding-bottom:0;min-height:1px}
+  body.sidebar-collapsed .sidebar .nav-logo .sub,
+  body.sidebar-collapsed .sidebar .co-sw,
+  body.sidebar-collapsed .sidebar .nav-footer .box,
+  body.sidebar-collapsed .sidebar .nav-item .fu-badge{display:none}
+  body.sidebar-collapsed .nav-logo{display:flex;justify-content:center}
+  body.sidebar-collapsed .nav-logo .name{font-size:0}
+  body.sidebar-collapsed .nav-logo .name i{font-size:18px;margin-right:0}
+  /* footer logout stays icon-only (text would overflow the rail) */
+  body.sidebar-collapsed .nav-footer{padding:10px 8px}
+  body.sidebar-collapsed .nav-footer button{font-size:0;padding:9px 0;white-space:nowrap;overflow:hidden}
+  body.sidebar-collapsed .nav-footer button i{font-size:16px;margin-right:0!important}
+}
+.desktop-only{display:inline-flex}
+@media(max-width:768px){.desktop-only{display:none!important}}
+
+/* ═══════════════ HEADER SPLIT DROPDOWNS (Payment / New) ═══════════════ */
+.hdr-dd{position:relative;display:inline-block}
+.hdr-dd-menu{position:absolute;top:calc(100% + 6px);right:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.18);padding:6px;min-width:230px;z-index:130;display:none}
+.hdr-dd-menu.open{display:block}
+.hdr-dd-menu button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:none;padding:10px 11px;border-radius:7px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;white-space:nowrap}
+.hdr-dd-menu button:hover{background:var(--surface-2)}
+.hdr-dd-menu button i:first-child{width:16px;text-align:center;flex-shrink:0}
+
+/* ═══════════════ KEYBOARD SHORTCUTS HELP ═══════════════ */
+.kbd{display:inline-block;min-width:20px;text-align:center;padding:2px 7px;border:1px solid var(--border);border-bottom-width:2px;border-radius:6px;background:var(--surface-2);font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:var(--text)}
+.sc-row{display:flex;align-items:center;justify-content:space-between;padding:8px 2px;border-bottom:1px solid var(--border)}
+.sc-row:last-child{border-bottom:none}
+.sc-row .sc-desc{font-size:13px;color:var(--text-soft)}
+
+/* ═══════════════ PRIVACY MODE (blur monetary values) ═══════════════ */
+.privacy-on .amt{filter:blur(7px);user-select:none;transition:filter .1s}
+.privacy-on .stat-val{filter:blur(10px);user-select:none}
+.privacy-on #sb-os{filter:blur(9px)}
+.privacy-on .amt:hover{filter:none}                 /* hover to peek a single value */
+.privacy-on .cp-sheet .amt{filter:none!important}   /* never blur the printable invoice */
+@media print{ .amt{filter:none!important} }

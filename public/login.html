@@ -119,6 +119,14 @@ button:hover{background:#1e40af}
   <button onclick="startLogin()">Continue</button>
 </div>
 
+<!-- STEP 1B: verify emailed OTP before issuing authenticator secret -->
+<div id="stepEotp" class="step">
+  <p>We emailed a 6-digit code to <b id="eotp-email"></b>. Enter it to set up your authenticator app.</p>
+  <input id="eotp" maxlength="6" inputmode="numeric" placeholder="Email OTP">
+  <button onclick="submitSetupOtp()">Verify email</button>
+  <p class="small-text">Didn't get it? <a href="#" onclick="resendSetupOtp();return false">Resend code</a></p>
+</div>
+
 <!-- STEP 2 -->
 <div id="step2" class="step">
   <p>Scan QR in Google Authenticator</p>
@@ -155,10 +163,11 @@ function hideError(){
   document.getElementById('err').style.display = 'none';
 }
 
-function setStep(n){
+function show(id){
   document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-  document.getElementById('step'+n).classList.add('active');
+  document.getElementById(id).classList.add('active');
 }
+function setStep(n){ show('step'+n); }
 
 /* STEP 1 */
 async function startLogin(){
@@ -182,23 +191,14 @@ async function startLogin(){
 
     // ---------------- IMPORTANT LOGIC ----------------
     if (d.step === 'setup') {
-
-      const setup = await fetch('/api/auth/setup-authenticator',{
+      // First-time enrollment: email an OTP to prove ownership BEFORE any secret is issued.
+      await fetch('/api/auth/request-setup-otp',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({email})
       });
-
-      const s = await setup.json();
-      if(!setup.ok) throw new Error(s.error);
-
-      document.getElementById('qr').src = s.qr;
-
-      document.getElementById('secret').innerText =
-        "Manual key: " + s.secret.replace(/(.{4})/g, '$1 ');
-
-      setStep(2);
-
+      document.getElementById('eotp-email').innerText = email;
+      show('stepEotp');
     } else {
       // already setup → skip QR
       setStep(3);
@@ -208,6 +208,39 @@ async function startLogin(){
     showError(e.message);
   }
 }
+
+/* STEP 1B: verify email OTP, then receive the authenticator secret */
+async function submitSetupOtp(){
+  hideError();
+  const otp = document.getElementById('eotp').value.trim();
+  if(otp.length !== 6){ showError('Enter the 6-digit email code'); return; }
+  try{
+    const setup = await fetch('/api/auth/setup-authenticator',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email, otp})
+    });
+    const s = await setup.json();
+    if(!setup.ok) throw new Error(s.error);
+
+    document.getElementById('qr').src = s.qr;
+    document.getElementById('secret').innerText =
+      "Manual key: " + s.secret.replace(/(.{4})/g, '$1 ');
+    setStep(2);
+  }catch(e){
+    showError(e.message);
+  }
+}
+
+function resendSetupOtp(){
+  fetch('/api/auth/request-setup-otp',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({email})
+  });
+  showError('A new code has been sent (in dev, check the server console).');
+}
+
 /* STEP 2 */
 function showVerify(){
   setStep(3);

@@ -78,7 +78,7 @@ async function renderUsers() {
         : '<span class="badge badge-pending">Inactive</span>';
       const roleBadge = u.role === 'admin'
         ? '<span class="badge" style="background:#dbeafe;color:#1d4ed8">Admin</span>'
-        : '<span class="badge" style="background:#f1f5f9;color:#475569">Staff</span>';
+        : '<span class="badge" style="background:var(--surface-2);color:var(--text-soft)">Staff</span>';
       const actions = u.id === CURRENT_USER.id
         ? '<span style="color:#94a3b8;font-size:12px">You</span>'
         : u.active
@@ -112,7 +112,7 @@ function openAddUserModal() {
     '<option value="staff">Staff — can manage challans, clients, payments</option>' +
     '<option value="admin">Admin — full access including users & companies</option>' +
     '</select></div>' +
-    '<div style="background:#f8fafc;border-radius:8px;padding:10px;font-size:12px;color:#64748b;margin-top:8px">' +
+    '<div style="background:var(--surface-2);border-radius:8px;padding:10px;font-size:12px;color:var(--muted);margin-top:8px">' +
     '<i class="fas fa-info-circle" style="margin-right:5px"></i>User will receive OTP via email when logging in. No password needed.</div>';
   openModal('Add User', html, saveNewUser);
 }
